@@ -27,7 +27,7 @@ async def score(req: ComprehensionRequest) -> dict:
             NodeStatus.mastered,
             completed_at=now,
         )
-        mem0_client.record_node_mastered(req.node_id, now.isoformat())
+        await mem0_client.record_node_mastered(req.node_id, now.isoformat())
 
         # Publish node.mastered → triggers regenerate_dag via RocketRide pipeline
         await rocketride_client.publish(

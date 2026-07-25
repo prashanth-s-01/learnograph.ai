@@ -21,7 +21,7 @@ class NodeStatus(str, Enum):
 
 
 class Resource(BaseModel):
-    type: Literal["github", "doc", "youtube"]
+    type: Literal["github", "doc", "youtube", "article"]
     title: str
     url: str
     reason: str

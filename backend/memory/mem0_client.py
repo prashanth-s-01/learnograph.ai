@@ -1,10 +1,22 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+
 from mem0 import MemoryClient
 
 from backend.config import settings
 
+log = logging.getLogger(__name__)
+
 _client: MemoryClient | None = None
+
+_EMPTY_PROFILE: dict = {
+    "mastered_node_ids": [],
+    "completed_at": {},
+    "preferences": {},
+    "user_id": settings.MEM0_USER_ID,
+}
 
 
 def _get_client() -> MemoryClient:
@@ -14,8 +26,7 @@ def _get_client() -> MemoryClient:
     return _client
 
 
-def read_user_profile(user_id: str = settings.MEM0_USER_ID) -> dict:
-    """Return a snapshot of the user's learning state from mem0 (read-only)."""
+def _read_profile_sync(user_id: str) -> dict:
     client = _get_client()
     memories = client.search("learning progress mastered nodes pace preferences", user_id=user_id)
     mastered_ids: list[str] = []
@@ -44,17 +55,21 @@ def read_user_profile(user_id: str = settings.MEM0_USER_ID) -> dict:
     }
 
 
-def read_full_state(user_id: str = settings.MEM0_USER_ID) -> dict:
+async def read_user_profile(user_id: str = settings.MEM0_USER_ID) -> dict:
+    """Return a snapshot of the user's learning state from mem0 (read-only)."""
+    try:
+        return await asyncio.to_thread(_read_profile_sync, user_id)
+    except Exception as exc:
+        log.warning("mem0 read_user_profile failed (continuing without profile): %s", exc)
+        return {**_EMPTY_PROFILE, "user_id": user_id}
+
+
+async def read_full_state(user_id: str = settings.MEM0_USER_ID) -> dict:
     """Return full mem0 state including pace signals for regenerate_dag."""
-    return read_user_profile(user_id)
+    return await read_user_profile(user_id)
 
 
-def record_node_mastered(
-    node_id: str,
-    completed_at: str,
-    user_id: str = settings.MEM0_USER_ID,
-) -> None:
-    """Write a mastered-node memory entry. Called by the API layer only, never by agents."""
+def _record_mastered_sync(node_id: str, completed_at: str, user_id: str) -> None:
     client = _get_client()
     client.add(
         [
@@ -63,3 +78,15 @@ def record_node_mastered(
         ],
         user_id=user_id,
     )
+
+
+async def record_node_mastered(
+    node_id: str,
+    completed_at: str,
+    user_id: str = settings.MEM0_USER_ID,
+) -> None:
+    """Write a mastered-node memory entry. Called by the API layer only, never by agents."""
+    try:
+        await asyncio.to_thread(_record_mastered_sync, node_id, completed_at, user_id)
+    except Exception as exc:
+        log.warning("mem0 record_node_mastered failed (progress not persisted to mem0): %s", exc)

@@ -1,6 +1,6 @@
 export type Difficulty = "beginner" | "intermediate" | "advanced";
 export type NodeStatus = "locked" | "available" | "seen" | "mastered";
-export type ResourceType = "github" | "doc" | "youtube";
+export type ResourceType = "github" | "doc" | "youtube" | "article";
 
 export interface Resource {
   type: ResourceType;

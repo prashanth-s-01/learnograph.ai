@@ -129,7 +129,7 @@ async def handle_content_classified(data: dict) -> None:
         )
 
     current_dag = await postgres.get_nodes(session_id)
-    mem0_state = mem0_client.read_full_state()
+    mem0_state = await mem0_client.read_full_state()
     updated = await regenerate_dag(current_dag, mem0_state)
     await postgres.upsert_nodes(session_id, updated)
 
@@ -141,6 +141,6 @@ async def handle_node_mastered(data: dict) -> None:
 
     session_id: str = data.get("session_id", "default")
     current_dag = await postgres.get_nodes(session_id)
-    mem0_state = mem0_client.read_full_state()
+    mem0_state = await mem0_client.read_full_state()
     updated = await regenerate_dag(current_dag, mem0_state)
     await postgres.upsert_nodes(session_id, updated)

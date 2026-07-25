@@ -64,22 +64,51 @@ function DAGNodeCard({ data }: NodeProps) {
 
 const nodeTypes = { dagNode: DAGNodeCard };
 
+function computeDepths(nodes: DAGNode[]): Map<string, number> {
+  const idSet = new Set(nodes.map((n) => n.id));
+  const depths = new Map(nodes.map((n) => [n.id, 0]));
+  // Iterate until stable (handles nodes whose prereqs are resolved across iterations)
+  for (let i = 0; i < nodes.length; i++) {
+    let changed = false;
+    for (const node of nodes) {
+      const inSetPrereqs = node.prerequisites.filter((p) => idSet.has(p));
+      if (inSetPrereqs.length > 0) {
+        const maxPrereq = Math.max(...inSetPrereqs.map((p) => depths.get(p) ?? 0));
+        const next = maxPrereq + 1;
+        if (next > (depths.get(node.id) ?? 0)) {
+          depths.set(node.id, next);
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return depths;
+}
+
 interface Props {
   nodes: DAGNode[];
   onNodeClick?: (node: DAGNode) => void;
 }
 
 export default function DAGCanvas({ nodes, onNodeClick }: Props) {
-  const rfNodes: Node[] = useMemo(
-    () =>
-      nodes.map((n, i) => ({
-        id: n.id,
-        type: "dagNode",
-        position: { x: (i % 4) * 280, y: Math.floor(i / 4) * 180 },
-        data: { node: n },
-      })),
-    [nodes]
-  );
+  const rfNodes: Node[] = useMemo(() => {
+    const depths = computeDepths(nodes);
+    const colCounter = new Map<number, number>();
+    return [...nodes]
+      .sort((a, b) => (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0))
+      .map((n) => {
+        const depth = depths.get(n.id) ?? 0;
+        const col = colCounter.get(depth) ?? 0;
+        colCounter.set(depth, col + 1);
+        return {
+          id: n.id,
+          type: "dagNode",
+          position: { x: col * 280, y: depth * 200 },
+          data: { node: n },
+        };
+      });
+  }, [nodes]);
 
   const rfEdges: Edge[] = useMemo(
     () =>
