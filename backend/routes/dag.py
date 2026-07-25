@@ -14,6 +14,7 @@ async def generate(req: DAGGenerateRequest) -> list[dict]:
     nodes = await dag_generator.generate_dag(req.topic, user_profile)
     if not nodes:
         raise HTTPException(status_code=422, detail="Topic is not a developer topic or produced no nodes.")
+    await postgres.clear_nodes(req.session_id)
     await postgres.upsert_nodes(req.session_id, nodes)
     return [n.model_dump(mode="json") for n in nodes]
 

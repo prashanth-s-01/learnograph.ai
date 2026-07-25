@@ -85,6 +85,12 @@ async def upsert_nodes(session_id: str, nodes: list[DAGNode]) -> None:
         )
 
 
+async def clear_nodes(session_id: str) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM dag_nodes WHERE session_id=$1", session_id)
+
+
 async def get_nodes(session_id: str) -> list[DAGNode]:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -133,3 +139,24 @@ async def update_node_resources(
             "UPDATE dag_nodes SET resources=$3, updated_at=NOW() WHERE session_id=$1 AND node_id=$2",
             session_id, node_id, json.dumps([r.model_dump() for r in resources]),
         )
+
+
+async def unlock_eligible_nodes(session_id: str) -> list[DAGNode]:
+    """
+    Scans all nodes for session_id. For any locked node whose prerequisites are all mastered,
+    updates its status to available in Postgres. Returns the updated list of nodes.
+    """
+    nodes = await get_nodes(session_id)
+    mastered_ids = {n.id for n in nodes if n.status == NodeStatus.mastered}
+
+    to_update: list[DAGNode] = []
+    for node in nodes:
+        if node.status == NodeStatus.locked:
+            if not node.prerequisites or all(p in mastered_ids for p in node.prerequisites):
+                node.status = NodeStatus.available
+                to_update.append(node)
+
+    if to_update:
+        await upsert_nodes(session_id, nodes)
+    return nodes
+

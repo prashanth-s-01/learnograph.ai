@@ -45,6 +45,7 @@ async def _broadcast(data: dict) -> None:
 async def websocket_endpoint(ws: WebSocket) -> None:
     await ws.accept()
     _ws_clients.add(ws)
+
     try:
         while True:
             await ws.receive_text()  # keep alive
@@ -75,9 +76,13 @@ async def _on_dag_regenerated(data: dict) -> None:
 
 
 async def _on_node_mastered(data: dict) -> None:
-    from backend.agents.dag_regenerator import handle_node_mastered
-    await handle_node_mastered(data)
     session_id = data.get("session_id", "default")
+    try:
+        from backend.agents.dag_regenerator import handle_node_mastered
+        await handle_node_mastered(data)
+    except Exception as exc:
+        log.error("Error running handle_node_mastered: %s", exc, exc_info=True)
+
     nodes = await postgres.get_nodes(session_id)
     await _broadcast({
         "event": "dag.updated",
