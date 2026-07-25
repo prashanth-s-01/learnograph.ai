@@ -1,0 +1,60 @@
+{
+  "name": "learnograph",
+  "version": "1.0.0",
+  "description": "Adaptive learning DAG pipeline — PDD Hackathon (RocketRide orchestration)",
+
+  "pipeline": [
+    {
+      "id": "generate_dag",
+      "name": "Generate Learning DAG",
+      "description": "MiniMax reasoning LLM builds a prerequisite DAG from a developer topic and the learner's mem0 profile.",
+      "module": "backend.agents.dag_generator",
+      "entrypoint": "generate_dag",
+      "emits": "dag.generated"
+    },
+    {
+      "id": "enrich_nodes",
+      "name": "Enrich DAG Nodes",
+      "description": "Rtrvr.ai fetches one GitHub repo, one official doc page, and one YouTube tutorial per node. No LLM call.",
+      "module": "backend.agents.node_enricher",
+      "entrypoint": "handle_dag_generated",
+      "trigger": "dag.generated",
+      "emits": "node.enriched",
+      "concurrency": "per_node"
+    },
+    {
+      "id": "classify_content",
+      "name": "Classify Browser Content",
+      "description": "Chrome extension POSTs a URL; Rtrvr.ai scrapes it; MiniMax maps the text to the best available learning node.",
+      "module": "backend.agents.content_classifier",
+      "entrypoint": "classify_content",
+      "emits": "content.classified"
+    },
+    {
+      "id": "regenerate_dag",
+      "name": "Regenerate DAG",
+      "description": "MiniMax re-evaluates node statuses, unlocks prerequisites, and reorders nodes by learner pace from mem0.",
+      "module": "backend.agents.dag_regenerator",
+      "entrypoint": "handle_content_classified",
+      "trigger": ["content.classified", "node.mastered"],
+      "emits": "dag.regenerated"
+    },
+    {
+      "id": "comprehension_check",
+      "name": "Comprehension Check",
+      "description": "ElevenLabs captures a spoken answer (frontend); MiniMax scores it against the node's success_criteria.",
+      "module": "backend.agents.comprehension",
+      "entrypoint": "score_comprehension",
+      "emits": "node.mastered"
+    }
+  ],
+
+  "sponsors": {
+    "llm": "MiniMax (MiniMax-M3, 1M context, OpenAI-compatible)",
+    "scraping": "Rtrvr.ai (/scrape + /agent endpoints)",
+    "memory": "mem0 (user learning state, read-only for agents)",
+    "orchestration": "RocketRide (this file — pipeline topology)",
+    "voice": "ElevenLabs (TTS question + STT answer, frontend only)",
+    "deployment": "Render (render.yaml, Grand Prize track)"
+  }
+}

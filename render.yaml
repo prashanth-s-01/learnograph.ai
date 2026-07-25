@@ -1,0 +1,56 @@
+# render.yaml — Learnograph pipeline
+# Required for Grand Prize / 2nd / 3rd place tracks.
+# Five explicit named steps across three workflows.
+# Pipeline topology is defined in learnograph.pipe (RocketRide).
+
+services:
+  - type: worker
+    name: learnograph-pipeline
+    workflows:
+
+      - name: generate-and-enrich
+        steps:
+          - name: generate_dag
+            # Prompt   : prompts/generate_dag.prompt
+            # LLM      : MiniMax (reasoning)
+            # Reads    : mem0 user profile
+            # Writes   : DAG snapshot to Postgres
+            # Publishes: dag.generated (RocketRide → enrich_nodes)
+            run: python -m backend.agents.dag_generator
+
+          - name: enrich_nodes
+            # Prompt   : prompts/enrich_node.prompt
+            # Tool     : Rtrvr.ai (no LLM)
+            # Triggered: dag.generated (RocketRide), runs once per node
+            # Writes   : resource lists back to DAG in Postgres
+            # Publishes: node.enriched (RocketRide)
+            run: python -m backend.agents.node_enricher
+
+      - name: classify-and-update
+        steps:
+          - name: classify_content
+            # Prompt   : prompts/classify_content.prompt
+            # Pre-step : Rtrvr.ai scrapes the URL first (inline, same step)
+            # LLM      : MiniMax
+            # Writes   : node status update to Postgres + WebSocket push
+            # Publishes: content.classified (RocketRide → regenerate_dag)
+            run: python -m backend.agents.content_classifier
+
+          - name: regenerate_dag
+            # Prompt   : prompts/regenerate_dag.prompt
+            # LLM      : MiniMax
+            # Triggered: content.classified or node.mastered (RocketRide)
+            # Reads    : full mem0 state
+            # Writes   : updated DAG to Postgres + WebSocket push
+            # Publishes: dag.regenerated (RocketRide)
+            run: python -m backend.agents.dag_regenerator
+
+      - name: comprehension
+        steps:
+          - name: comprehension_check
+            # Prompt   : prompts/comprehension_check.prompt
+            # Pre-step : ElevenLabs STT transcribes user's spoken answer (frontend)
+            # LLM      : MiniMax (scorer)
+            # On pass  : API layer writes mastered status to Postgres + mem0,
+            #            publishes node.mastered (RocketRide → regenerate_dag)
+            run: python -m backend.agents.comprehension

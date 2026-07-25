@@ -1,0 +1,70 @@
+% You are an expert Python engineer. Define enrich_node.
+
+<include>context/project_preamble.prompt</include>
+
+<pdd-reason>Populates a DAG node with 3 curated developer resources (GitHub repo, doc, video) via Rtrvr.ai.</pdd-reason>
+
+<pdd-interface>
+{
+  "type": "module",
+  "module": {
+    "functions": [
+      {
+        "name": "enrich_node",
+        "signature": "(node_title: str, success_criteria: str) -> list[Resource]",
+        "returns": "list[Resource] — exactly 3 items: [github_repo, official_doc, youtube_video]"
+      }
+    ]
+  }
+}
+</pdd-interface>
+
+<responsibility>
+Accepts a node title and success_criteria and returns exactly 3 ranked developer resources for
+that node: one GitHub repo, one official documentation page, one developer-focused YouTube video.
+Runs once per node in response to the `dag.generated` RocketRide event; publishes `node.enriched` on success.
+
+Rtrvr.ai usage: two search calls per node —
+1. Search GitHub for the most-starred relevant repo.
+2. Search for and validate the official maintainer doc URL and a developer YouTube video.
+This agent defines the query strategy and ranking criteria; Rtrvr.ai executes the searches.
+</responsibility>
+
+<non_responsibilities>
+- Does not generate or modify the DAG.
+- Does not classify content or check comprehension.
+- Does not persist resources — returns them for the caller to attach to the node.
+</non_responsibilities>
+
+<vocabulary>
+- Resource: `{ "type": "github" | "doc" | "youtube", "title": str, "url": str, "reason": str }`.
+- Official documentation: the primary documentation site published by the maintainer of the technology (e.g. react.dev for React, docs.python.org for Python).
+- Developer-focused YouTube video: a tutorial or explanation video from a channel focused on software engineering education.
+</vocabulary>
+
+<contract_rules>
+R1 (MUST): Return exactly 3 resources in order: github_repo, official_doc, youtube_video.
+R2 (MUST): Each resource must include type, title, url, and reason fields.
+R3 (MUST NOT): Return resources that are not scoped to software engineering or developer education.
+R4 (MUST NOT): Return the same URL more than once in a single response.
+R5 (MUST): The official_doc resource must link to the maintainer's own documentation, not a third-party tutorial site.
+R6 (MUST NOT): Fabricate URLs — only return URLs that Rtrvr.ai scraping confirms exist.
+</contract_rules>
+
+<capabilities>
+- MAY call Rtrvr.ai to search and validate resource URLs.
+- MAY subscribe to the `dag.generated` RocketRide event and publish `node.enriched` on success.
+- MUST NOT call MiniMax LLM API — this is a scraping step, not a reasoning step.
+- MUST NOT call ElevenLabs.
+- MUST NOT write to Postgres or mem0.
+- MUST NOT call another agent's function directly.
+</capabilities>
+
+<coverage>
+R1: story__enrich_node_curated_resources.md
+R2: story__enrich_node_curated_resources.md
+R3: TODO add dedicated out-of-scope-resource story before production use
+R4: TODO add dedicated duplicate-URL story before production use
+R5: story__enrich_node_curated_resources.md
+R6: story__enrich_node_no_fabricated_urls.md
+</coverage>

@@ -1,0 +1,80 @@
+% You are an expert Python engineer. Define score_comprehension.
+
+<include>context/project_preamble.prompt</include>
+
+<pdd-reason>Scores a transcribed spoken answer against a node success_criteria; returns pass/needs_review plus feedback.</pdd-reason>
+
+<pdd-interface>
+{
+  "type": "module",
+  "module": {
+    "functions": [
+      {
+        "name": "score_comprehension",
+        "signature": "(success_criteria: str, transcribed_answer: str) -> ComprehensionResult",
+        "returns": "ComprehensionResult"
+      }
+    ]
+  }
+}
+</pdd-interface>
+
+<responsibility>
+Accepts a node's success_criteria and the user's spoken answer (already transcribed to text by
+ElevenLabs), and returns a pass/fail verdict plus one sentence of feedback.
+
+ElevenLabs integration — two steps around this agent (neither is inside the agent):
+- Pre-step (in VoiceCheck.tsx frontend component):
+  1. ElevenLabs TTS asks the question aloud: "Explain [success_criteria concept] in your own words."
+  2. ElevenLabs STT records and transcribes the user's spoken answer to plain text.
+  3. The transcribed text is sent to POST /comprehension/score alongside the node's success_criteria.
+- Post-step (optional, same component):
+  1. ElevenLabs TTS reads the `feedback` sentence from ComprehensionResult aloud.
+  2. If verdict is `pass`, plays a confirmation; if `needs_review`, reads the feedback as coaching.
+
+This agent receives and returns text only — it never calls ElevenLabs directly. On a `pass` verdict,
+the FastAPI route handler (not this agent) publishes a `node.mastered` RocketRide pipeline event after writing to
+Postgres and mem0.
+</responsibility>
+
+<non_responsibilities>
+- Does not record audio or transcribe speech (ElevenLabs owns that — see pre-step above).
+- Does not update node status in Postgres (the caller does that on pass).
+- Does not generate the question to ask the user — derived from success_criteria by the caller.
+- Does not write to mem0 or publish the `node.mastered` RocketRide event (the API layer does both, after receiving a pass verdict).
+</non_responsibilities>
+
+<vocabulary>
+- pass: the transcribed answer demonstrates that the user can address the success_criteria in their own words, even if imperfectly phrased.
+- needs_review: the answer is missing, off-topic, or does not address the core concept in success_criteria.
+- success_criteria: a single testable sentence from the node schema (e.g. "Can explain what useEffect's dependency array does and why it matters").
+</vocabulary>
+
+<contract_rules>
+R1 (MUST): Return verdict "pass" only when the answer substantively addresses the success_criteria.
+R2 (MUST): Return verdict "needs_review" when the answer is empty, incoherent, or off-topic.
+R3 (MUST): Return feedback as exactly one sentence, specific to what the user actually said.
+R4 (MUST NOT): Return "pass" for answers that merely repeat the success_criteria verbatim without demonstrating understanding.
+R5 (MUST NOT): Penalise imperfect phrasing, filler words, or non-native English — assess conceptual understanding only.
+R6 (MUST NOT): Include the success_criteria text in the feedback response.
+R7 (MUST NOT): Ask follow-up questions in the feedback — one sentence of forward-pointing feedback only.
+</contract_rules>
+
+<capabilities>
+- MAY call MiniMax LLM API.
+- MUST NOT call ElevenLabs (transcription is done before this agent is called).
+- MUST NOT write to Postgres or mem0.
+- MUST NOT call Rtrvr.ai.
+- MUST NOT publish RocketRide events directly — the API layer publishes `node.mastered` after receiving this agent's `pass` verdict.
+- MUST NOT call another agent's function directly.
+</capabilities>
+
+<coverage>
+R1: story__comprehension_correct_explanation_passes.md
+R2: story__comprehension_empty_answer_needs_review.md
+R3: story__comprehension_correct_explanation_passes.md, story__comprehension_empty_answer_needs_review.md
+R4: story__comprehension_verbatim_repeat_fails.md
+R5: TODO add dedicated non-native-phrasing story before production use
+R6: TODO add dedicated feedback-leakage story before production use
+R7: TODO add dedicated no-follow-up-question story before production use
+</coverage>

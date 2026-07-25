@@ -1,0 +1,70 @@
+% You are an expert Python engineer. Define generate_dag.
+
+<include>context/project_preamble.prompt</include>
+
+<pdd-reason>Generates the initial developer learning DAG from a topic and mem0 user profile.</pdd-reason>
+
+<pdd-interface>
+{
+  "type": "module",
+  "module": {
+    "functions": [
+      {
+        "name": "generate_dag",
+        "signature": "(topic: str, user_profile: dict | None) -> list[DAGNode]",
+        "returns": "list[DAGNode]"
+      }
+    ]
+  }
+}
+</pdd-interface>
+
+<responsibility>
+Accepts a developer learning topic and a mem0 user profile snapshot, and returns a complete DAG
+of learning nodes with prerequisite relationships. Publishes a `dag.generated` RocketRide pipeline event on success.
+</responsibility>
+
+<non_responsibilities>
+- Does not enrich nodes with resources (`enrich_node` owns that, triggered via the `dag.generated` RocketRide event).
+- Does not classify content or update node status.
+- Does not persist the DAG to Postgres.
+</non_responsibilities>
+
+<vocabulary>
+- DAGNode: a single learning concept conforming to the shared node schema in the preamble.
+- Prerequisite relationship: node A is a prerequisite of node B when B cannot be meaningfully learned without A.
+- Available node: a node whose prerequisites are all mastered or empty.
+- Developer topic: a software engineering skill, tool, language, or concept (e.g. "Learn React", "Master system design", "Understand TCP/IP").
+</vocabulary>
+
+<contract_rules>
+R1 (MUST): Return a valid list of DAGNode objects conforming to the shared node schema for any developer topic input.
+R2 (MUST): Set prerequisite relationships so no node depends on itself and no circular dependency exists.
+R3 (MUST): Set status to "available" for root nodes (no prerequisites) and "locked" for all others.
+R4 (MUST): Set success_criteria to a single testable sentence a human can self-assess against.
+R5 (MUST NOT): Return fewer than 5 nodes or more than 30 nodes for any topic.
+R6 (MUST NOT): Include non-developer topics (recipes, fitness, general knowledge) — scope is software engineering only.
+R7 (MUST NOT): Hardcode specific node IDs — generate IDs as kebab-case slugs derived from the node title.
+R8 (MUST): If user_profile contains mastered node IDs, exclude those nodes from the returned DAG and unlock their direct dependants.
+</contract_rules>
+
+<capabilities>
+- MAY read user_profile from mem0 (read-only).
+- MAY call MiniMax LLM API.
+- MAY publish a `dag.generated` event to the RocketRide pipeline on success.
+- MUST NOT write to Postgres.
+- MUST NOT call Rtrvr.ai or ElevenLabs.
+- MUST NOT modify user_profile.
+- MUST NOT call another agent's function directly.
+</capabilities>
+
+<coverage>
+R1: story__generate_dag_new_user.md
+R2: story__generate_dag_new_user.md
+R3: story__generate_dag_new_user.md
+R4: story__generate_dag_new_user.md
+R5: story__generate_dag_new_user.md
+R6: story__generate_dag_rejects_non_dev_topics.md
+R7: TODO add dedicated slug-collision story before production use
+R8: story__generate_dag_returning_user.md
+</coverage>

@@ -1,0 +1,72 @@
+% You are an expert Python engineer. Define classify_content.
+
+<include>context/project_preamble.prompt</include>
+
+<pdd-reason>Classifies scraped tab content against the current DAG to identify the matching node.</pdd-reason>
+
+<pdd-interface>
+{
+  "type": "module",
+  "module": {
+    "functions": [
+      {
+        "name": "classify_content",
+        "signature": "(page_text: str, page_url: str, available_nodes: list[dict]) -> str | None",
+        "returns": "str | None — matched node ID, or null if no confident match"
+      }
+    ]
+  }
+}
+</pdd-interface>
+
+<responsibility>
+Accepts scraped text from the user's active browser tab and the current list of available node IDs
+and titles, and returns the single best-matching node ID or `null`. Publishes a `content.classified`
+RocketRide pipeline event when a match is found.
+
+Pre-step (runs in the `/classify` FastAPI route before this agent is called):
+1. Receive `page_url` from the Chrome extension.
+2. Call Rtrvr.ai to extract clean page text (strips nav, ads, boilerplate).
+3. Pass the extracted `page_text` + `page_url` into this agent.
+
+This agent never calls Rtrvr.ai directly — it receives `page_text` as a pre-scraped input.
+</responsibility>
+
+<non_responsibilities>
+- Does not scrape content (Rtrvr.ai owns that, called before this agent).
+- Does not update node status in Postgres.
+- Does not decide what to do after a match is found (`regenerate_dag` owns that, triggered via the `content.classified` RocketRide event).
+</non_responsibilities>
+
+<vocabulary>
+- Confident match: the page text substantively covers the concept described by the node's title and success_criteria, not merely mentions the word.
+- available_nodes: nodes with status `available` or `seen` — locked nodes must not be matched.
+- page_text: plain text extracted from the active tab by Rtrvr.ai, stripped of navigation and boilerplate.
+</vocabulary>
+
+<contract_rules>
+R1 (MUST): Return a node ID only when the page text substantively covers that node's concept.
+R2 (MUST): Return null when no available node is a confident match.
+R3 (MUST NOT): Return a node ID for a locked node (status = "locked").
+R4 (MUST NOT): Match on keyword presence alone — the content must address the node's success_criteria.
+R5 (MUST NOT): Return more than one node ID — one match or null, never a list.
+R6 (MUST): Operate only on the nodes passed in available_nodes — must not invent or assume other nodes exist.
+</contract_rules>
+
+<capabilities>
+- MAY call MiniMax LLM API.
+- MAY publish a `content.classified` event to the RocketRide pipeline when a match is found.
+- MUST NOT write to Postgres or mem0.
+- MUST NOT call Rtrvr.ai (content is already scraped and passed in as page_text).
+- MUST NOT call ElevenLabs.
+- MUST NOT call another agent's function directly.
+</capabilities>
+
+<coverage>
+R1: story__classify_content_video_match.md
+R2: story__classify_content_offtopic_returns_null.md
+R3: story__classify_content_locked_node_never_matches.md
+R4: story__classify_content_video_match.md, story__classify_content_offtopic_returns_null.md
+R5: TODO add dedicated multi-candidate-match story before production use
+R6: TODO add dedicated invented-node-id story before production use
+</coverage>

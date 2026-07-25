@@ -1,0 +1,15 @@
+When generating tests from a PDD prompt for Learnograph:
+
+1. Read the <contract_rules> section for the module.
+2. For every MUST and MUST NOT rule, generate at least one test unless explicitly marked non-testable.
+3. Name tests to reference the rule ID: test_R1_returns_valid_dag_nodes, test_R3_locked_node_not_matched.
+4. Include a negative test for every MUST NOT rule.
+5. Assert observable behavior only — return values, status fields, error types.
+6. MUST NOT assert private helper names, internal class structure, or exact error message strings.
+7. For exception assertions, use pytest.raises(ErrorType, match=r"keyword1|keyword2").
+8. Preserve existing tests — never overwrite accumulated regression tests (use --merge).
+9. If a rule cannot be tested without a fixture that does not exist yet, add a comment describing the missing fixture.
+
+Framework: pytest
+Mocks: use unittest.mock for MiniMax, Rtrvr.ai, ElevenLabs, and Band publish/subscribe calls — never call real APIs or a real Band connection in tests.
+DAG fixture: use the shared node schema in context/project_preamble.prompt as the base fixture shape.

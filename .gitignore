@@ -1,0 +1,22 @@
+.env
+.env.local
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# Node
+node_modules/
+.next/
+frontend/.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp

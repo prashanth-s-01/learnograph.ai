@@ -1,0 +1,76 @@
+% Learnograph — shared project preamble
+% Include at the top of every prompt: <include>context/project_preamble.prompt</include>
+
+% ── Backend stack ────────────────────────────────────────────────────────────
+% Language   : Python 3.11, FastAPI, Pydantic v2
+% Database   : Postgres via backend/db/postgres.py — stores DAG snapshots and node state
+% Memory     : mem0 via backend/memory/mem0_client.py — stores learning state across sessions
+% Orchestration: RocketRide via backend/orchestration/rocketride_client.py — agents publish/subscribe
+%               to named pipeline events; no agent calls another agent's function directly.
+%               Pipeline topology defined in learnograph.pipe (project root).
+% Realtime   : WebSocket server at WS /ws — pushes node state changes to the React frontend
+%               the moment an agent updates state
+
+% ── Frontend stack (reference only — agents do not generate frontend code) ───
+% React + Next.js, single page at frontend/pages/index.tsx
+% DAG rendered with React Flow in frontend/components/DAGCanvas.tsx
+% Voice check UI in frontend/components/VoiceCheck.tsx (calls ElevenLabs)
+% WebSocket client hook at frontend/hooks/useWebSocket.ts
+
+% ── Chrome extension (reference only) ────────────────────────────────────────
+% Manifest V3 — content scripts per active tab, no persistent background listener
+% extension/content.js extracts page title, meta, and visible text → POST to /classify
+% Rtrvr.ai is called server-side after /classify receives the URL, not in the extension itself
+
+% ── RocketRide event map — the orchestration contract every agent must follow ──
+
+% Event published    | Published by      | Subscribed by
+% dag.generated      | generate_dag      | enrich_node
+% node.enriched      | enrich_node       | (terminal for this branch)
+% content.classified | classify_content  | regenerate_dag
+% dag.regenerated    | regenerate_dag    | (terminal — pushes to WebSocket)
+% node.mastered      | API layer, after  | regenerate_dag
+%                    | comprehension_check returns pass
+
+% Each agent publishes exactly one event on successful completion and zero events on failure.
+% No agent subscribes to an event it does not need.
+% No agent publishes an event outside this table.
+
+% ── mem0 write path — owned by the API layer, not by any agent ───────────────
+% generate_dag   reads mem0 (user profile)   — never writes
+% regenerate_dag reads mem0 (full state)     — never writes
+% The FastAPI route handler writes to mem0 after comprehension_check returns pass
+% and the node status is updated to mastered in Postgres.
+
+% ── Project-wide MUST NOT rules (apply to all agents) ────────────────────────
+% MUST NOT hand-patch generated output — edit the prompt and regenerate
+% MUST NOT hardcode node IDs or match logic in code
+% MUST NOT log API keys, bearer tokens, or mem0 secrets
+% MUST NOT call another agent's function directly — communicate only via RocketRide pipeline events
+%   (see table above) and shared DAG state in Postgres
+
+% ── DAG node schema — shared contract for all agents ─────────────────────────
+
+DAGNode schema (Pydantic v2, defined in backend/models/dag.py):
+
+{
+  "id": "react-hooks",
+  "title": "React Hooks",
+  "description": "useState, useEffect, useContext — the three hooks that cover 90% of use cases",
+  "prerequisites": ["react-components", "javascript-closures"],
+  "difficulty": "beginner | intermediate | advanced",
+  "estimated_hours": 3,
+  "success_criteria": "Can explain what useEffect's dependency array does and why it matters",
+  "status": "locked | available | seen | mastered",
+  "resources": [],
+  "completed_at": null,
+  "triggering_content": null
+}
+
+Field rules:
+- id: kebab-case slug derived from the node title; must be unique within a DAG
+- prerequisites: list of node IDs; empty list means root node
+- status transitions: locked → available (when all prerequisites mastered) → seen (content classified) → mastered (comprehension passed)
+- resources: populated by enrich_node; empty until that agent runs
+- completed_at: ISO-8601 timestamp; null until status transitions to mastered
+- triggering_content: URL of the page that triggered the seen transition; null otherwise
