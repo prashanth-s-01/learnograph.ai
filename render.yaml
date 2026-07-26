@@ -1,56 +1,64 @@
-# render.yaml — Learnograph pipeline
-# Required for Grand Prize / 2nd / 3rd place tracks.
-# Five explicit named steps across three workflows.
-# Pipeline topology is defined in learnograph.pipe (RocketRide).
+## Render Blueprint — deploys Postgres + backend + frontend in one click.
+## Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: learnograph-db
+    databaseName: learnograph
+    user: learnograph
+    plan: free
 
 services:
-  - type: worker
-    name: learnograph-pipeline
-    workflows:
 
-      - name: generate-and-enrich
-        steps:
-          - name: generate_dag
-            # Prompt   : prompts/generate_dag.prompt
-            # LLM      : MiniMax (reasoning)
-            # Reads    : mem0 user profile
-            # Writes   : DAG snapshot to Postgres
-            # Publishes: dag.generated (RocketRide → enrich_nodes)
-            run: python -m backend.agents.dag_generator
+  # ── FastAPI backend ─────────────────────────────────────────────────────────
+  - type: web
+    name: learnograph-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: learnograph-db
+          property: connectionString
+      # ── LLM (Claude Sonnet 5 via TokenRouter) ──────────────────────────────
+      - key: LLM_API_KEY
+        sync: false          # paste your TokenRouter key in the Render dashboard
+      - key: LLM_BASE_URL
+        value: https://api.tokenrouter.com/v1
+      - key: LLM_MODEL
+        value: anthropic/claude-sonnet-5
+      # ── mem0 ───────────────────────────────────────────────────────────────
+      - key: MEM0_API_KEY
+        sync: false
+      - key: MEM0_USER_ID
+        value: user_001
+      # ── Rtrvr.ai ───────────────────────────────────────────────────────────
+      - key: RTRVR_API_KEY
+        sync: false
+      # ── RocketRide (leave blank to use in-process asyncio queues) ──────────
+      - key: ROCKETRIDE_API_KEY
+        value: ""
 
-          - name: enrich_nodes
-            # Prompt   : prompts/enrich_node.prompt
-            # Tool     : Rtrvr.ai (no LLM)
-            # Triggered: dag.generated (RocketRide), runs once per node
-            # Writes   : resource lists back to DAG in Postgres
-            # Publishes: node.enriched (RocketRide)
-            run: python -m backend.agents.node_enricher
-
-      - name: classify-and-update
-        steps:
-          - name: classify_content
-            # Prompt   : prompts/classify_content.prompt
-            # Pre-step : Rtrvr.ai scrapes the URL first (inline, same step)
-            # LLM      : MiniMax
-            # Writes   : node status update to Postgres + WebSocket push
-            # Publishes: content.classified (RocketRide → regenerate_dag)
-            run: python -m backend.agents.content_classifier
-
-          - name: regenerate_dag
-            # Prompt   : prompts/regenerate_dag.prompt
-            # LLM      : MiniMax
-            # Triggered: content.classified or node.mastered (RocketRide)
-            # Reads    : full mem0 state
-            # Writes   : updated DAG to Postgres + WebSocket push
-            # Publishes: dag.regenerated (RocketRide)
-            run: python -m backend.agents.dag_regenerator
-
-      - name: comprehension
-        steps:
-          - name: comprehension_check
-            # Prompt   : prompts/comprehension_check.prompt
-            # Pre-step : ElevenLabs STT transcribes user's spoken answer (frontend)
-            # LLM      : MiniMax (scorer)
-            # On pass  : API layer writes mastered status to Postgres + mem0,
-            #            publishes node.mastered (RocketRide → regenerate_dag)
-            run: python -m backend.agents.comprehension
+  # ── Next.js frontend ────────────────────────────────────────────────────────
+  - type: web
+    name: learnograph-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          name: learnograph-backend
+          type: web
+          property: url         # automatically set to https://learnograph-backend.onrender.com
+      # NEXT_PUBLIC_WS_URL must be set manually after the backend is deployed:
+      # value: wss://learnograph-backend.onrender.com/ws
+      - key: NEXT_PUBLIC_WS_URL
+        sync: false
+      - key: NEXT_PUBLIC_ELEVENLABS_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_ELEVENLABS_VOICE_ID
+        sync: false
