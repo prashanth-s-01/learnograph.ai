@@ -56,9 +56,26 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 # ── RocketRide subscribers wired to push updates over WebSocket ───────────────
 
 async def _on_dag_generated(data: dict) -> None:
+    session_id = data.get("session_id", "default")
+    # Nodes are already in Postgres (upsert_nodes ran before this publish)
+    nodes = await postgres.get_nodes(session_id)
+    await _broadcast({
+        "event": "dag.generated",
+        "data": {"nodes": [n.model_dump(mode="json") for n in nodes]},
+    })
+    # Enrichment runs in the background; node.enriched events push per-node updates
     from backend.agents.node_enricher import handle_dag_generated
-    await handle_dag_generated(data)
-    await _broadcast({"event": "dag.generated", "data": data})
+    asyncio.create_task(handle_dag_generated(data))
+
+
+async def _on_node_enriched(data: dict) -> None:
+    """Fired after each node's resources are saved to Postgres; pushes fresh DAG to frontend."""
+    session_id = data.get("session_id", "default")
+    nodes = await postgres.get_nodes(session_id)
+    await _broadcast({
+        "event": "dag.updated",
+        "data": {"nodes": [n.model_dump(mode="json") for n in nodes]},
+    })
 
 
 async def _on_content_classified(data: dict) -> None:
@@ -97,6 +114,7 @@ async def startup() -> None:
     await postgres.run_migrations()
 
     await rocketride_client.subscribe("dag.generated",      _on_dag_generated)
+    await rocketride_client.subscribe("node.enriched",      _on_node_enriched)
     await rocketride_client.subscribe("content.classified", _on_content_classified)
     await rocketride_client.subscribe("dag.regenerated",    _on_dag_regenerated)
     await rocketride_client.subscribe("node.mastered",      _on_node_mastered)

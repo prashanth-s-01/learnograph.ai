@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ComprehensionResult, DAGNode } from "@/types/dag";
 import { useWebSocket } from "@/hooks/useWebSocket";
 
@@ -17,6 +17,14 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [panelNode, setPanelNode] = useState<DAGNode | null>(null);
   const [checkNode, setCheckNode] = useState<DAGNode | null>(null);
+
+  // Keep panelNode in sync with live WebSocket updates (so resources appear as they load)
+  useEffect(() => {
+    if (panelNode) {
+      const updated = nodes.find((n) => n.id === panelNode.id);
+      if (updated) setPanelNode(updated);
+    }
+  }, [nodes]);
 
   async function handleGenerate() {
     if (!topic.trim()) return;

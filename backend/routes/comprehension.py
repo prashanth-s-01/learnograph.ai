@@ -28,7 +28,7 @@ async def score(req: ComprehensionRequest) -> dict:
             completed_at=now,
         )
         await postgres.unlock_eligible_nodes(req.session_id)
-        mem0_client.record_node_mastered(req.node_id, now.isoformat())
+        await mem0_client.record_node_mastered(req.node_id, now.isoformat())
 
         # Publish node.mastered → triggers regenerate_dag via RocketRide pipeline
         await rocketride_client.publish(

@@ -12,7 +12,6 @@ from openai import AsyncOpenAI
 
 from backend.config import settings
 from backend.models.dag import DAGNode, Difficulty, NodeStatus
-from backend.orchestration import rocketride_client
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +47,38 @@ Node schema:
   "triggering_content": null
 }
 """.strip()
+
+
+def _topo_sort(nodes: list[DAGNode]) -> list[DAGNode]:
+    """Return nodes in topological order (root nodes first) using Kahn's algorithm."""
+    from collections import deque
+
+    id_set = {n.id for n in nodes}
+    node_map = {n.id: n for n in nodes}
+    in_degree: dict[str, int] = {n.id: 0 for n in nodes}
+    children: dict[str, list[str]] = {n.id: [] for n in nodes}
+
+    for node in nodes:
+        for prereq in node.prerequisites:
+            if prereq in id_set:
+                in_degree[node.id] += 1
+                children[prereq].append(node.id)
+
+    queue: deque[str] = deque(nid for nid in in_degree if in_degree[nid] == 0)
+    result: list[DAGNode] = []
+
+    while queue:
+        nid = queue.popleft()
+        result.append(node_map[nid])
+        for child in children[nid]:
+            in_degree[child] -= 1
+            if in_degree[child] == 0:
+                queue.append(child)
+
+    # Append any remaining nodes (should only happen on unexpected cycles)
+    seen = {n.id for n in result}
+    result.extend(n for n in nodes if n.id not in seen)
+    return result
 
 
 def _slug(title: str) -> str:
@@ -108,10 +139,4 @@ async def generate_dag(topic: str, user_profile: dict | None) -> list[DAGNode]:
             if all(p in mastered_set for p in node.prerequisites) and node.prerequisites:
                 node.status = NodeStatus.available
 
-    # Publish → triggers enrich_node via RocketRide pipeline
-    await rocketride_client.publish(
-        "dag.generated",
-        {"nodes": [n.model_dump(mode="json") for n in nodes]},
-    )
-
-    return nodes
+    return _topo_sort(nodes)

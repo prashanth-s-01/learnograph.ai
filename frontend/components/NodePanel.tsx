@@ -13,12 +13,14 @@ const RESOURCE_ICON: Record<string, string> = {
   github: "🐙",
   doc: "📖",
   youtube: "▶️",
+  article: "📝",
 };
 
 const RESOURCE_LABEL: Record<string, string> = {
   github: "GitHub Repository",
   doc: "Official Documentation",
   youtube: "YouTube Tutorial",
+  article: "Tutorial Article",
 };
 
 interface Props {

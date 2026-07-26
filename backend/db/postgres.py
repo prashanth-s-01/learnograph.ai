@@ -52,6 +52,12 @@ def _row_to_node(row: asyncpg.Record) -> DAGNode:
     )
 
 
+async def clear_nodes(session_id: str) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM dag_nodes WHERE session_id=$1", session_id)
+
+
 async def upsert_nodes(session_id: str, nodes: list[DAGNode]) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
