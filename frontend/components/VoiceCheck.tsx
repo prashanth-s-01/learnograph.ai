@@ -263,19 +263,32 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
   return (
     <div
       style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50,
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.24)",
+        backdropFilter: "blur(14px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 50,
       }}
     >
       <div style={{
-        background: "#1e293b", borderRadius: 14, padding: 32, maxWidth: 480,
-        width: "90%", color: "#f1f5f9", position: "relative",
+        background: "rgba(255,255,255,0.96)",
+        borderRadius: 20,
+        padding: 32,
+        maxWidth: 480,
+        width: "90%",
+        color: "#0f172a",
+        position: "relative",
+        border: "1px solid rgba(148,163,184,0.16)",
+        boxShadow: "0 24px 80px rgba(15,23,42,0.16)",
       }}>
         <button
           onClick={onClose}
           style={{
-            position: "absolute", top: 14, right: 14, background: "none",
-            border: "none", color: "#64748b", fontSize: 22, cursor: "pointer",
+            position: "absolute", top: 14, right: 14, background: "rgba(241,245,249,0.9)",
+            border: "1px solid rgba(148,163,184,0.18)", color: "#64748b", fontSize: 22, cursor: "pointer",
             lineHeight: 1, padding: 4, borderRadius: 4,
           }}
           title="Close"
@@ -283,12 +296,12 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
           ✕
         </button>
 
-        <h2 style={{ marginBottom: 6, fontSize: 20, fontWeight: 700 }}>Comprehension Check</h2>
+        <h2 style={{ marginBottom: 6, fontSize: 20, fontWeight: 700, color: "#0f172a" }}>Comprehension Check</h2>
         <p style={{ fontSize: 13, color: "#64748b", marginBottom: 16 }}>{node.title}</p>
 
         <div style={{
-          background: "#0f172a", borderRadius: 8, padding: "12px 16px",
-          marginBottom: 24, borderLeft: "3px solid #3b82f6",
+          background: "#f8fafc", borderRadius: 14, padding: "12px 16px",
+          marginBottom: 24, border: "1px solid rgba(148,163,184,0.16)",
         }}>
           <strong style={{
             fontSize: 11, color: "#64748b", display: "block",
@@ -296,14 +309,14 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
           }}>
             Question
           </strong>
-          <p style={{ fontSize: 14, lineHeight: 1.7, margin: 0 }}>{node.success_criteria}</p>
+          <p style={{ fontSize: 14, lineHeight: 1.7, margin: 0, color: "#0f172a" }}>{node.success_criteria}</p>
         </div>
 
         {error && (
           <div style={{
-            background: "#ef444422", border: "1px solid #ef444466",
-            borderRadius: 8, padding: "10px 14px", marginBottom: 16,
-            fontSize: 13, color: "#fca5a5", lineHeight: 1.5,
+            background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
+            borderRadius: 14, padding: "10px 14px", marginBottom: 16,
+            fontSize: 13, color: "#b91c1c", lineHeight: 1.5,
           }}>
             {error}
           </div>
@@ -311,13 +324,13 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
 
         {transcribedText && phase !== "idle" && (
           <div style={{
-            background: "#0f172a", borderRadius: 8, padding: "10px 14px",
-            marginBottom: 16, border: "1px solid #334155",
+            background: "#f8fafc", borderRadius: 14, padding: "10px 14px",
+            marginBottom: 16, border: "1px solid rgba(148,163,184,0.16)",
           }}>
             <strong style={{ fontSize: 11, color: "#94a3b8", display: "block", marginBottom: 4 }}>
               Transcribed Answer:
             </strong>
-            <p style={{ fontSize: 13, color: "#e2e8f0", margin: 0, fontStyle: "italic" }}>
+            <p style={{ fontSize: 13, color: "#0f172a", margin: 0, fontStyle: "italic" }}>
               "{transcribedText}"
             </p>
           </div>
@@ -334,8 +347,8 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
               rows={3}
               placeholder="Type your explanation here..."
               style={{
-                width: "100%", padding: 10, borderRadius: 8, background: "#0f172a",
-                border: "1px solid #334155", color: "#f8fafc", fontSize: 14, resize: "vertical",
+                width: "100%", padding: 10, borderRadius: 12, background: "#ffffff",
+                border: "1px solid rgba(148,163,184,0.18)", color: "#0f172a", fontSize: 14, resize: "vertical",
                 marginBottom: 10, outline: "none",
               }}
             />
@@ -361,7 +374,7 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
               <button
                 onClick={() => setShowTextInput(true)}
                 style={{
-                  background: "transparent", color: "#94a3b8", border: "1px solid #334155",
+                  background: "transparent", color: "#64748b", border: "1px solid rgba(148,163,184,0.2)",
                   borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontSize: 13,
                 }}
               >
@@ -372,7 +385,7 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
         )}
 
         {phase === "speaking-question" && (
-          <div style={{ color: "#f59e0b", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ color: "#b45309", display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 20 }}>🔊</span>
             <span>Reading question aloud… speak your answer once it finishes.</span>
           </div>
@@ -381,7 +394,7 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
         {phase === "recording" && (
           <div>
             <div style={{
-              color: "#ef4444", marginBottom: 16,
+              color: "#dc2626", marginBottom: 16,
               display: "flex", alignItems: "center", gap: 10,
             }}>
               <span style={{ fontSize: 16 }}>●</span>
@@ -394,7 +407,7 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
         )}
 
         {phase === "scoring" && (
-          <p style={{ color: "#f59e0b", display: "flex", alignItems: "center", gap: 8 }}>
+          <p style={{ color: "#b45309", display: "flex", alignItems: "center", gap: 8 }}>
             <span>⏳</span> Scoring your answer…
           </p>
         )}
@@ -403,10 +416,10 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
           <div>
             <div style={{
               padding: "14px 16px", borderRadius: 8, marginBottom: 16,
-              background: result.verdict === "pass" ? "#10b98122" : "#f59e0b22",
-              border: `1px solid ${result.verdict === "pass" ? "#10b98155" : "#f59e0b55"}`,
+              background: result.verdict === "pass" ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.08)",
+              border: `1px solid ${result.verdict === "pass" ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.22)"}`,
             }}>
-              <strong style={{ color: result.verdict === "pass" ? "#10b981" : "#f59e0b" }}>
+              <strong style={{ color: result.verdict === "pass" ? "#047857" : "#b45309" }}>
                 {result.verdict === "pass" ? "✓ Pass" : "⟳ Needs Review"}
               </strong>
               <p style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, margin: "8px 0 0" }}>

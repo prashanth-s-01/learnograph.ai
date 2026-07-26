@@ -1,12 +1,50 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --border: #334155;
-  --text: #f1f5f9;
-  --muted: #94a3b8;
-  --accent: #3b82f6;
+  --bg: #f6f8fb;
+  --surface: #ffffff;
+  --border: #dbe3ee;
+  --text: #0f172a;
+  --muted: #64748b;
+  --accent: #2563eb;
 }
 
 html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+
+.learnograph-flow .react-flow__controls {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.learnograph-flow .react-flow__controls-button {
+  background: transparent;
+  border: 0;
+  color: #334155;
+  width: 32px;
+  height: 32px;
+}
+
+.learnograph-flow .react-flow__controls-button:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: #0f172a;
+}
+
+.learnograph-flow .react-flow__minimap {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.learnograph-flow .react-flow__minimap-mask {
+  fill: rgba(37, 99, 235, 0.08);
+  stroke: rgba(37, 99, 235, 0.28);
+}
+
+.learnograph-flow .react-flow__attribution {
+  background: transparent;
+  color: #94a3b8;
+}

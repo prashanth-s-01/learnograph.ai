@@ -94,17 +94,16 @@ async def _on_dag_regenerated(data: dict) -> None:
 
 async def _on_node_mastered(data: dict) -> None:
     session_id = data.get("session_id", "default")
-    try:
-        from backend.agents.dag_regenerator import handle_node_mastered
-        await handle_node_mastered(data)
-    except Exception as exc:
-        log.error("Error running handle_node_mastered: %s", exc, exc_info=True)
-
+    # Broadcast immediately using the already-correct DB state
+    # (unlock_eligible_nodes ran in the route before this event was published)
     nodes = await postgres.get_nodes(session_id)
     await _broadcast({
         "event": "dag.updated",
         "data": {"nodes": [n.model_dump(mode="json") for n in nodes]},
     })
+    # LLM-based regeneration runs in the background; it will broadcast again via dag.regenerated
+    from backend.agents.dag_regenerator import handle_node_mastered
+    asyncio.create_task(handle_node_mastered(data))
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────

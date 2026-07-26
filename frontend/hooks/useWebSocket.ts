@@ -6,6 +6,7 @@ import type { DAGNode, WSMessage } from "@/types/dag";
 interface UseWebSocketReturn {
   nodes: DAGNode[];
   connected: boolean;
+  refresh: () => void;
 }
 
 export function useWebSocket(sessionId: string): UseWebSocketReturn {
@@ -39,10 +40,21 @@ export function useWebSocket(sessionId: string): UseWebSocketReturn {
     };
   }, []);
 
+  // Fetch fresh node state over HTTP — used for immediate post-action updates
+  // that shouldn't wait for the async WS pipeline to complete.
+  const refresh = useCallback(() => {
+    fetch(`/api/dag/${sessionId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data: DAGNode[] | null) => {
+        if (data) setNodes(data);
+      })
+      .catch(() => { /* ignore */ });
+  }, [sessionId]);
+
   useEffect(() => {
     connect();
     return () => wsRef.current?.close();
   }, [connect]);
 
-  return { nodes, connected };
+  return { nodes, connected, refresh };
 }

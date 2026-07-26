@@ -133,7 +133,7 @@ export default function DAGCanvas({ nodes, onNodeClick }: Props) {
   );
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div className="learnograph-flow" style={{ width: "100%", height: "100%" }}>
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -143,7 +143,14 @@ export default function DAGCanvas({ nodes, onNodeClick }: Props) {
       >
         <Background color="#334155" gap={24} />
         <Controls />
-        <MiniMap nodeColor={(n) => STATUS_COLOR[(n.data?.node as DAGNode)?.status] ?? "#6b7280"} />
+        <MiniMap
+          nodeColor={(n) => STATUS_COLOR[(n.data?.node as DAGNode)?.status] ?? "#6b7280"}
+          nodeStrokeColor={(n) => STATUS_COLOR[(n.data?.node as DAGNode)?.status] ?? "#6b7280"}
+          maskColor="rgba(255,255,255,0.55)"
+          style={{ width: 190, height: 130 }}
+          pannable
+          zoomable
+        />
       </ReactFlow>
     </div>
   );

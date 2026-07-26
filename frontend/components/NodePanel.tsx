@@ -36,22 +36,33 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
   return (
     <div
       style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)",
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15,23,42,0.24)",
+        backdropFilter: "blur(14px)",
         display: "flex", alignItems: "center", justifyContent: "center", zIndex: 40,
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div style={{
-        background: "#1e293b", borderRadius: 14, padding: 32, maxWidth: 540,
-        width: "90%", color: "#f1f5f9", position: "relative",
-        maxHeight: "88vh", overflowY: "auto",
+        background: "rgba(255,255,255,0.96)",
+        borderRadius: 20,
+        padding: 32,
+        maxWidth: 540,
+        width: "90%",
+        color: "#0f172a",
+        position: "relative",
+        maxHeight: "88vh",
+        overflowY: "auto",
+        border: "1px solid rgba(148,163,184,0.16)",
+        boxShadow: "0 24px 80px rgba(15,23,42,0.16)",
       }}>
         {/* Close */}
         <button
           onClick={onClose}
           style={{
-            position: "absolute", top: 14, right: 14, background: "none",
-            border: "none", color: "#64748b", fontSize: 22, cursor: "pointer",
+            position: "absolute", top: 14, right: 14, background: "rgba(241,245,249,0.9)",
+            border: "1px solid rgba(148,163,184,0.18)", color: "#64748b", fontSize: 22, cursor: "pointer",
             lineHeight: 1, padding: 4, borderRadius: 4,
           }}
           title="Close"
@@ -62,13 +73,13 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
         {/* Status badge */}
         <div style={{
           display: "inline-block", fontSize: 10, background: color + "22",
-          border: `1px solid ${color}55`, borderRadius: 4, padding: "2px 8px",
+          border: `1px solid ${color}55`, borderRadius: 999, padding: "4px 10px",
           textTransform: "uppercase", letterSpacing: 1, color, marginBottom: 10,
         }}>
           {node.status}
         </div>
 
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color, lineHeight: 1.3 }}>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6, color: "#0f172a", lineHeight: 1.3 }}>
           {node.title}
         </h2>
 
@@ -80,14 +91,14 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
           )}
         </div>
 
-        <p style={{ fontSize: 14, lineHeight: 1.75, color: "#cbd5e1", marginBottom: 22 }}>
+        <p style={{ fontSize: 14, lineHeight: 1.75, color: "#475569", marginBottom: 22 }}>
           {node.description}
         </p>
 
         {/* Success criteria */}
         <div style={{
-          background: "#0f172a", borderRadius: 8, padding: "12px 16px",
-          marginBottom: 24, borderLeft: "3px solid #3b82f6",
+          background: "#f8fafc", borderRadius: 14, padding: "12px 16px",
+          marginBottom: 24, border: "1px solid rgba(148,163,184,0.16)",
         }}>
           <strong style={{
             fontSize: 11, color: "#64748b", display: "block",
@@ -95,7 +106,7 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
           }}>
             Success Criteria
           </strong>
-          <p style={{ fontSize: 14, lineHeight: 1.7, margin: 0 }}>{node.success_criteria}</p>
+          <p style={{ fontSize: 14, lineHeight: 1.7, margin: 0, color: "#0f172a" }}>{node.success_criteria}</p>
         </div>
 
         {/* Resources */}
@@ -116,12 +127,18 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
                 rel="noopener noreferrer"
                 style={{
                   display: "flex", alignItems: "flex-start", gap: 12,
-                  background: "#0f172a", borderRadius: 8, padding: "12px 14px",
-                  textDecoration: "none", color: "#f1f5f9",
-                  border: "1px solid #1e3a5f", transition: "border-color 0.15s",
+                  background: "#f8fafc", borderRadius: 14, padding: "12px 14px",
+                  textDecoration: "none", color: "#0f172a",
+                  border: "1px solid rgba(148,163,184,0.16)", transition: "border-color 0.15s, transform 0.15s",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#3b82f6")}
-                onMouseLeave={(e) => (e.currentTarget.style.borderColor = "#1e3a5f")}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(37,99,235,0.32)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "rgba(148,163,184,0.16)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                }}
               >
                 <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>
                   {RESOURCE_ICON[r.type] ?? "🔗"}
@@ -131,13 +148,13 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
                     {RESOURCE_LABEL[r.type] ?? r.type}
                   </div>
                   <div style={{
-                    fontSize: 13, fontWeight: 600, color: "#60a5fa",
+                    fontSize: 13, fontWeight: 600, color: "#2563eb",
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>
                     {r.title}
                   </div>
                   {r.reason && (
-                    <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4, lineHeight: 1.5 }}>
+                    <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, lineHeight: 1.5 }}>
                       {r.reason}
                     </div>
                   )}
@@ -147,9 +164,9 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
           </div>
         ) : (
           <div style={{
-            background: "#0f172a", borderRadius: 8, padding: "12px 16px",
-            marginBottom: 24, fontSize: 13, color: "#475569", fontStyle: "italic",
-            border: "1px solid #1e293b",
+            background: "#f8fafc", borderRadius: 14, padding: "12px 16px",
+            marginBottom: 24, fontSize: 13, color: "#64748b", fontStyle: "italic",
+            border: "1px solid rgba(148,163,184,0.16)",
           }}>
             Resources are being fetched — they appear here once the enrichment step completes.
           </div>
@@ -160,9 +177,10 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
           <button
             onClick={onStartCheck}
             style={{
-              background: "#3b82f6", color: "#fff", border: "none", borderRadius: 8,
+              background: "linear-gradient(135deg, #2563eb, #3b82f6)", color: "#fff", border: "none", borderRadius: 12,
               padding: "12px 24px", cursor: "pointer", fontSize: 15, fontWeight: 600,
               width: "100%",
+              boxShadow: "0 10px 24px rgba(37,99,235,0.14)",
             }}
           >
             🎙 Start Comprehension Check
@@ -171,8 +189,8 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
 
         {node.status === "mastered" && (
           <div style={{
-            background: "#10b98122", border: "1px solid #10b98155",
-            borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#6ee7b7",
+            background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.2)",
+            borderRadius: 14, padding: "12px 16px", fontSize: 14, color: "#047857",
             textAlign: "center",
           }}>
             ✓ You have already mastered this node!
@@ -181,8 +199,8 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
 
         {node.status === "locked" && (
           <div style={{
-            background: "#6b728022", border: "1px solid #6b728055",
-            borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#9ca3af",
+            background: "rgba(100,116,139,0.08)", border: "1px solid rgba(100,116,139,0.18)",
+            borderRadius: 14, padding: "12px 16px", fontSize: 14, color: "#64748b",
             textAlign: "center",
           }}>
             🔒 Complete all prerequisites before this node unlocks.
