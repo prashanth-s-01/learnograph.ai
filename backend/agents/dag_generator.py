@@ -26,7 +26,10 @@ Rules:
 - 5–30 nodes total.
 - Each node id is a kebab-case slug derived from the title (e.g. "react-hooks").
 - Root nodes (no prerequisites) have status "available"; all others "locked".
-- success_criteria is a single testable sentence the learner can self-assess.
+- success_criteria is a CONCEPTUAL question the learner can answer ORALLY in 1–2 sentences.
+  It must test understanding, not ask the learner to write, build, implement, or code anything.
+  Good example: "What is the difference between a pointer and a reference in C++?"
+  Bad example: "Write a C program that uses pointers to swap two integers."
 - Reject non-developer topics: return an empty array [].
 - No circular dependencies. No self-referential prerequisites.
 - If mastered_node_ids are provided, exclude those nodes and set their direct

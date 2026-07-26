@@ -79,19 +79,24 @@ async def regenerate_dag(
     dag_json = json.dumps([n.model_dump(mode="json") for n in current_dag], indent=2)
     mem0_json = json.dumps(mem0_state, indent=2)
 
-    response = await _client.chat.completions.create(
-        model=settings.LLM_MODEL,
-        messages=[
-            {"role": "system", "content": _SYSTEM},
-            {
-                "role": "user",
-                "content": f"Current DAG:\n{dag_json}\n\nmem0_state:\n{mem0_json}",
-            },
-        ],
-    )
+    updated: list[DAGNode] = []
+    try:
+        response = await _client.chat.completions.create(
+            model=settings.LLM_MODEL,
+            messages=[
+                {"role": "system", "content": _SYSTEM},
+                {
+                    "role": "user",
+                    "content": f"Current DAG:\n{dag_json}\n\nmem0_state:\n{mem0_json}",
+                },
+            ],
+        )
 
-    raw = response.choices[0].message.content or "[]"
-    updated = _parse_nodes(raw)
+        raw = response.choices[0].message.content or "[]"
+        updated = _parse_nodes(raw)
+    except Exception as exc:
+        log.warning("regenerate_dag LLM call failed, falling back to rule-based update: %s", exc)
+        updated = [DAGNode(**n.model_dump()) for n in current_dag]
 
     # Belt-and-suspenders: enforce R1 (no nodes dropped), R3 (edges unchanged),
     # R4 (immutable fields), R5 (mastered never regresses)
@@ -124,6 +129,13 @@ async def regenerate_dag(
     for orig_node in current_dag:
         if orig_node.id not in returned_ids:
             result.append(orig_node)
+
+    # R2: Programmatically unlock every node whose ALL prerequisites are mastered
+    mastered_ids = {n.id for n in result if n.status == NodeStatus.mastered}
+    for node in result:
+        if node.status != NodeStatus.mastered:
+            if not node.prerequisites or all(p in mastered_ids for p in node.prerequisites):
+                node.status = NodeStatus.available
 
     await rocketride_client.publish(
         "dag.regenerated",
