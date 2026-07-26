@@ -66,7 +66,7 @@ R7 (MUST NOT): Use this route for nodes that are "locked" — locked nodes have 
 - MAY read from Postgres (get_nodes to validate).
 - MAY write to resource_visits table and update dag_nodes.status in Postgres.
 - MAY publish `resource.visited` RocketRide event.
-- MUST NOT call MiniMax LLM API.
+- MUST NOT call the LLM API.
 - MUST NOT call Rtrvr.ai or ElevenLabs.
 - MUST NOT write to mem0.
 - MUST NOT call another agent's function directly.

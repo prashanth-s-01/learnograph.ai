@@ -2,7 +2,7 @@
 
 <include>context/project_preamble.prompt</include>
 
-<pdd-reason>Restructures the DAG after a node state change using MiniMax, orchestrated via the RocketRide pipeline.</pdd-reason>
+<pdd-reason>Restructures the DAG after a node state change using the LLM, orchestrated via the RocketRide pipeline.</pdd-reason>
 
 <pdd-interface>
 {
@@ -26,7 +26,7 @@ has actually mastered. Runs whenever the RocketRide pipeline delivers a `content
 `node.mastered` event; publishes `dag.regenerated` on success.
 
 Two-phase approach:
-1. LLM call: asks MiniMax to reorder and update statuses. If the LLM call fails for any reason,
+1. LLM call: asks Claude (via TokenRouter) to reorder and update statuses. If the LLM call fails for any reason,
    fall back to a deep copy of current_dag before applying the belt-and-suspenders rules below.
 2. Belt-and-suspenders enforcement (always applied, regardless of LLM success/failure):
    - R1: any nodes the LLM dropped are appended from current_dag.
@@ -64,7 +64,7 @@ R9 (MUST): If the LLM call raises any exception, fall back to a deep copy of cur
 </contract_rules>
 
 <capabilities>
-- MAY call MiniMax LLM API.
+- MAY call the LLM API (Claude Sonnet 5 via TokenRouter, OpenAI-compatible).
 - MAY read mem0_state (read-only).
 - MAY subscribe to `content.classified` and `node.mastered` RocketRide events.
 - MAY publish `dag.regenerated` on success.

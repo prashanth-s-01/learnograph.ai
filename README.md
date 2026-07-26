@@ -2,7 +2,17 @@
 
 > AI-powered developer learning roadmap generator with real-time voice comprehension checks.
 
-**Built for the PDD Hackathon** — powered by MiniMax (via TokenRouter), Rtrvr.ai, mem0, RocketRide, and ElevenLabs.
+**Built for the PDD Hackathon** — powered by Claude Sonnet 5 (via TokenRouter), Rtrvr.ai, mem0, RocketRide, and ElevenLabs.
+
+---
+
+## What is Learnograph?
+
+Learnograph is an adaptive learning platform that turns any developer topic into a structured, prerequisite-aware roadmap. You enter a subject — "Learn React", "Understand system design", "Master Kubernetes" — and the system generates a directed acyclic graph of 5–30 learning nodes, each carrying curated resources (a tutorial article, official documentation, and a YouTube video), an estimated time commitment, and a conceptual comprehension question. A Chrome extension runs quietly in the background, detecting when you browse a resource URL or read a relevant page, and automatically advances your position in the graph. When you feel ready, you speak your answer to the comprehension question aloud; ElevenLabs captures and transcribes it, Claude evaluates whether you genuinely understood the concept rather than recited it, and on a pass your completed node is marked mastered and the next layer of the roadmap unlocks immediately. Your progress is stored in mem0 so the system remembers what you have mastered across sessions and skips topics you already know when you start a new roadmap.
+
+## Why it matters for businesses and individuals
+
+For corporate teams, Learnograph removes the guesswork from technical onboarding. Instead of handing a new hire a PDF checklist or a generic course subscription, a manager can generate a role-specific learning roadmap on day one — "Backend engineer, Node.js stack, microservices" — and track exactly which concepts the employee has mastered, which they are actively reading, and which are still locked. Because comprehension is verified through an oral explanation rather than a multiple-choice quiz, the system distinguishes genuine understanding from box-ticking, giving team leads confidence that a developer is actually ready to work on a given area before they are assigned to it. For individual learners, the value is in focus: rather than spending hours deciding what to study next or juggling browser bookmarks, Learnograph surfaces exactly the next concept to tackle, pre-loads the best resources for it, and tells you precisely what you need to be able to explain before moving on — turning open-ended self-study into a clear, measurable progression.
 
 ---
 
@@ -106,7 +116,7 @@ flowchart TD
 | API framework | FastAPI | 0.115 |
 | Database driver | asyncpg (PostgreSQL) | 0.30 |
 | LLM client | openai (OpenAI-compatible) | 1.59 |
-| LLM provider | TokenRouter → Claude Sonnet 5 / MiniMax-M3 | — |
+| LLM provider | Claude Sonnet 5 via TokenRouter | — |
 | Long-term memory | mem0 (MemoryClient) | 0.1.74 |
 | Web search/scrape | Rtrvr.ai `/scrape` + `/agent` | — |
 | Pipeline orchestration | RocketRide pub/sub | — |

@@ -61,7 +61,7 @@ R9 (MUST): Return nodes in topological order — prerequisites before dependants
 
 <capabilities>
 - MAY read user_profile from mem0 (read-only).
-- MAY call MiniMax LLM API.
+- MAY call the LLM API (Claude Sonnet 5 via TokenRouter, OpenAI-compatible).
 - MUST NOT publish RocketRide events (the route does that).
 - MUST NOT write to Postgres.
 - MUST NOT call Rtrvr.ai or ElevenLabs.

@@ -61,7 +61,7 @@ R6 (MUST): Operate only on the nodes passed in available_nodes — must not inve
 </contract_rules>
 
 <capabilities>
-- MAY call MiniMax LLM API.
+- MAY call the LLM API (Claude Sonnet 5 via TokenRouter, OpenAI-compatible).
 - MAY publish a `content.classified` event to the RocketRide pipeline when a match is found.
 - MUST NOT write to Postgres or mem0.
 - MUST NOT call Rtrvr.ai (content is already scraped and passed in as page_text).

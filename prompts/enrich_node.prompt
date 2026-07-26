@@ -75,7 +75,7 @@ R8 (MUST): In `handle_dag_generated._enrich_one()`, publish `node.enriched` ONLY
 - MAY subscribe to the `dag.generated` RocketRide event.
 - MAY call `postgres.update_node_resources()` (write path owned by `handle_dag_generated._enrich_one()`).
 - MAY publish `node.enriched` after the DB write.
-- MUST NOT call MiniMax LLM API — this is a scraping step, not a reasoning step.
+- MUST NOT call the LLM API — this is a scraping step, not a reasoning step.
 - MUST NOT call ElevenLabs.
 - MUST NOT call another agent's function directly.
 </capabilities>

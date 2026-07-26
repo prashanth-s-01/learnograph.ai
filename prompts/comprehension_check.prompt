@@ -76,7 +76,7 @@ R7 (MUST NOT): Ask follow-up questions in the feedback — one sentence of forwa
 </contract_rules>
 
 <capabilities>
-- MAY call MiniMax LLM API.
+- MAY call the LLM API (Claude Sonnet 5 via TokenRouter, OpenAI-compatible).
 - MUST NOT call ElevenLabs (transcription is done before this agent is called).
 - MUST NOT write to Postgres or mem0.
 - MUST NOT call Rtrvr.ai.
