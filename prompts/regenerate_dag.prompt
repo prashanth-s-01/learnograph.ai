@@ -22,36 +22,52 @@
 <responsibility>
 Accepts the full current DAG JSON and the full mem0 state, and returns an updated DAG with
 reordered recommendations, newly unlocked nodes, and updated priorities based on what the user
-has actually mastered. Runs whenever the RocketRide pipeline delivers a `content.classified` or `node.mastered`
-event; publishes `dag.regenerated` on success.
+has actually mastered. Runs whenever the RocketRide pipeline delivers a `content.classified` or
+`node.mastered` event; publishes `dag.regenerated` on success.
+
+Two-phase approach:
+1. LLM call: asks MiniMax to reorder and update statuses. If the LLM call fails for any reason,
+   fall back to a deep copy of current_dag before applying the belt-and-suspenders rules below.
+2. Belt-and-suspenders enforcement (always applied, regardless of LLM success/failure):
+   - R1: any nodes the LLM dropped are appended from current_dag.
+   - R3: prerequisite edges are restored from current_dag.
+   - R4: immutable fields (id, title, description, success_criteria) are restored from current_dag.
+   - R5: mastered nodes are locked in to their mastered status and completed_at.
+   - R8: seen nodes are preserved — `_normalize_statuses` skips them to prevent regression.
+   - R2/R9: a final pass unlocks every locked node whose all prerequisites are mastered.
 </responsibility>
 
 <non_responsibilities>
 - Does not classify content or score comprehension.
 - Does not add new top-level topics — only restructures the existing DAG.
-- Does not write to Postgres or mem0 (the caller persists the result).
+- Does not write to Postgres (the caller persists the result).
+- Does not write to mem0.
 </non_responsibilities>
 
 <vocabulary>
 - Unlocked node: a node whose prerequisites have all transitioned to status `mastered`.
 - mem0_state: the full user memory object from mem0, including completed node IDs, completion timestamps, content format preferences, and learning pace.
 - Reordering: changing the recommended next-node priority based on what was just mastered and the user's observed learning pace — not changing prerequisite relationships.
+- seen node: a node the user has visited a learning resource for; status is between "available" and "mastered". Must not regress to "available" during regeneration.
 </vocabulary>
 
 <contract_rules>
 R1 (MUST): Return every node from the input DAG — never drop nodes.
-R2 (MUST): Unlock every node whose prerequisites are all mastered in the returned DAG.
+R2 (MUST): Unlock every node whose prerequisites are all mastered in the returned DAG. Enforced by the final programmatic pass after LLM output validation.
 R3 (MUST): Preserve all prerequisite relationships exactly as received — never add or remove edges.
 R4 (MUST NOT): Change any node's id, title, description, or success_criteria fields.
 R5 (MUST NOT): Change the status of a mastered node to any other status.
 R6 (MUST): Use mem0_state.completed_at timestamps to infer learning pace and reorder available nodes by estimated fit.
 R7 (MUST NOT): Invent new nodes — only update existing ones.
+R8 (MUST NOT): Change a seen node's status to "available" — seen is ≥ available and must not regress. `_normalize_statuses` skips nodes whose status is "seen" or "mastered".
+R9 (MUST): If the LLM call raises any exception, fall back to a deep copy of current_dag and apply the same belt-and-suspenders rules. The fallback must still satisfy R1–R8.
 </contract_rules>
 
 <capabilities>
 - MAY call MiniMax LLM API.
 - MAY read mem0_state (read-only).
-- MAY subscribe to `content.classified` and `node.mastered` RocketRide events, and publish `dag.regenerated` on success.
+- MAY subscribe to `content.classified` and `node.mastered` RocketRide events.
+- MAY publish `dag.regenerated` on success.
 - MUST NOT write to mem0.
 - MUST NOT call Rtrvr.ai or ElevenLabs.
 - MUST NOT write to Postgres.
@@ -66,4 +82,6 @@ R4: TODO add dedicated field-immutability story before production use
 R5: story__regenerate_dag_no_regression.md
 R6: TODO add dedicated pace-reordering story before production use
 R7: story__regenerate_dag_no_nodes_lost.md
+R8: story__seen_node_cannot_regress.md
+R9: TODO add dedicated llm-fallback story before production use
 </coverage>

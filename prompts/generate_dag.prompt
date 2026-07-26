@@ -21,13 +21,22 @@
 
 <responsibility>
 Accepts a developer learning topic and a mem0 user profile snapshot, and returns a complete DAG
-of learning nodes with prerequisite relationships. Publishes a `dag.generated` RocketRide pipeline event on success.
+of learning nodes with prerequisite relationships in topological order (root nodes first).
+
+The FastAPI route (routes/dag.py) — not this function — publishes the `dag.generated` RocketRide
+pipeline event and persists the result to Postgres. This function is pure: it returns a list and
+has no side effects.
+
+ID normalisation: the LLM may return prerequisite arrays using its own internal IDs. `_parse_nodes`
+builds an id_map of LLM-ID → slug BEFORE overriding node IDs, then remaps all prerequisites through
+it so that every prerequisite reference uses the same kebab-slug as the node's own `id` field.
 </responsibility>
 
 <non_responsibilities>
 - Does not enrich nodes with resources (`enrich_node` owns that, triggered via the `dag.generated` RocketRide event).
 - Does not classify content or update node status.
 - Does not persist the DAG to Postgres.
+- Does not publish any RocketRide events (the route does).
 </non_responsibilities>
 
 <vocabulary>
@@ -35,23 +44,25 @@ of learning nodes with prerequisite relationships. Publishes a `dag.generated` R
 - Prerequisite relationship: node A is a prerequisite of node B when B cannot be meaningfully learned without A.
 - Available node: a node whose prerequisites are all mastered or empty.
 - Developer topic: a software engineering skill, tool, language, or concept (e.g. "Learn React", "Master system design", "Understand TCP/IP").
+- Topological order: an ordering where every prerequisite appears before the nodes that depend on it (root nodes first).
 </vocabulary>
 
 <contract_rules>
 R1 (MUST): Return a valid list of DAGNode objects conforming to the shared node schema for any developer topic input.
 R2 (MUST): Set prerequisite relationships so no node depends on itself and no circular dependency exists.
-R3 (MUST): Set status to "available" for root nodes (no prerequisites) and "locked" for all others.
-R4 (MUST): Set success_criteria to a single testable sentence a human can self-assess against.
+R3 (MUST): Set status to "available" for root nodes (no prerequisites); set status to "available" for any node all of whose prerequisites are in the mastered set; set all other nodes to "locked". Enforced by `_normalize_statuses()`.
+R4 (MUST): Set success_criteria to a CONCEPTUAL question the learner can answer ORALLY in 1–2 sentences. It must test understanding — never ask the learner to write, build, implement, or code anything. Good: "What is the difference between a pointer and a reference?" Bad: "Write a program using pointers."
 R5 (MUST NOT): Return fewer than 5 nodes or more than 30 nodes for any topic.
-R6 (MUST NOT): Include non-developer topics (recipes, fitness, general knowledge) — scope is software engineering only.
-R7 (MUST NOT): Hardcode specific node IDs — generate IDs as kebab-case slugs derived from the node title.
+R6 (MUST NOT): Include non-developer topics (recipes, fitness, general knowledge) — return [] for those.
+R7 (MUST NOT): Hardcode specific node IDs. Generate IDs as kebab-case slugs derived from the node title (e.g. "react-hooks"). Prerequisite arrays must use these same slug-form IDs. `_parse_nodes` remaps LLM-generated prerequisite IDs to the correct slugs before constructing DAGNode objects.
 R8 (MUST): If user_profile contains mastered node IDs, exclude those nodes from the returned DAG and unlock their direct dependants.
+R9 (MUST): Return nodes in topological order — prerequisites before dependants — using Kahn's algorithm (`_topo_sort()`). Nodes with no prerequisites come first. If unexpected cycles exist, append remaining nodes after the sorted set.
 </contract_rules>
 
 <capabilities>
 - MAY read user_profile from mem0 (read-only).
 - MAY call MiniMax LLM API.
-- MAY publish a `dag.generated` event to the RocketRide pipeline on success.
+- MUST NOT publish RocketRide events (the route does that).
 - MUST NOT write to Postgres.
 - MUST NOT call Rtrvr.ai or ElevenLabs.
 - MUST NOT modify user_profile.
@@ -67,4 +78,5 @@ R5: story__generate_dag_new_user.md
 R6: story__generate_dag_rejects_non_dev_topics.md
 R7: TODO add dedicated slug-collision story before production use
 R8: story__generate_dag_returning_user.md
+R9: story__generate_dag_topological_order.md
 </coverage>

@@ -3,8 +3,11 @@
 
 % ── Backend stack ────────────────────────────────────────────────────────────
 % Language   : Python 3.11, FastAPI, Pydantic v2
-% Database   : Postgres via backend/db/postgres.py — stores DAG snapshots and node state
+% Database   : Postgres via backend/db/postgres.py — stores DAG snapshots, node state,
+%               and resource visit history
 % Memory     : mem0 via backend/memory/mem0_client.py — stores learning state across sessions
+%               All mem0 calls are async (asyncio.to_thread wrappers) with try/except for
+%               graceful degradation when mem0 is unavailable.
 % Orchestration: RocketRide via backend/orchestration/rocketride_client.py — agents publish/subscribe
 %               to named pipeline events; no agent calls another agent's function directly.
 %               Pipeline topology defined in learnograph.pipe (project root).
@@ -12,10 +15,13 @@
 %               the moment an agent updates state
 
 % ── Frontend stack (reference only — agents do not generate frontend code) ───
-% React + Next.js, single page at frontend/pages/index.tsx
+% React + Next.js App Router, main page at frontend/app/page.tsx
 % DAG rendered with React Flow in frontend/components/DAGCanvas.tsx
+%   - Nodes are positioned by topological depth (computeDepths()), same-depth nodes share a row
 % Voice check UI in frontend/components/VoiceCheck.tsx (calls ElevenLabs)
 % WebSocket client hook at frontend/hooks/useWebSocket.ts
+%   - Returns { nodes, connected, refresh } — refresh() does an immediate HTTP fetch of
+%     /api/dag/{sessionId}, used to update the UI right after a comprehension pass
 
 % ── Chrome extension (reference only) ────────────────────────────────────────
 % Manifest V3 — content scripts per active tab, no persistent background listener
@@ -24,13 +30,15 @@
 
 % ── RocketRide event map — the orchestration contract every agent must follow ──
 
-% Event published    | Published by      | Subscribed by
-% dag.generated      | generate_dag      | enrich_node
-% node.enriched      | enrich_node       | (terminal for this branch)
-% content.classified | classify_content  | regenerate_dag
-% dag.regenerated    | regenerate_dag    | (terminal — pushes to WebSocket)
-% node.mastered      | API layer, after  | regenerate_dag
-%                    | comprehension_check returns pass
+% Event published    | Published by           | Subscribed by
+% dag.generated      | routes/dag.py route    | enrich_node (handle_dag_generated)
+% node.enriched      | enrich_node            | (terminal — pushes dag.updated to WebSocket)
+% content.classified | classify_content       | regenerate_dag (handle_content_classified)
+% dag.regenerated    | regenerate_dag         | (terminal — pushes dag.regenerated to WebSocket)
+% node.mastered      | routes/comprehension.py| regenerate_dag (handle_node_mastered),
+%                    | route, after pass       | but main.py broadcasts immediately from DB
+%                    |                        | state BEFORE LLM regeneration starts
+% resource.visited   | routes/resource_visit.py| (terminal — pushes dag.updated to WebSocket)
 
 % Each agent publishes exactly one event on successful completion and zero events on failure.
 % No agent subscribes to an event it does not need.
@@ -41,6 +49,17 @@
 % regenerate_dag reads mem0 (full state)     — never writes
 % The FastAPI route handler writes to mem0 after comprehension_check returns pass
 % and the node status is updated to mastered in Postgres.
+
+% ── node.mastered fast-path broadcast ────────────────────────────────────────
+% When the /comprehension/score route gets a "pass" verdict:
+%   1. update_node_status(mastered) in Postgres
+%   2. unlock_eligible_nodes() — immediately unlocks dependants in Postgres
+%   3. record_node_mastered() in mem0
+%   4. publish node.mastered
+% _on_node_mastered subscriber in main.py:
+%   1. Reads fresh state from Postgres (already correct — no LLM needed)
+%   2. Broadcasts dag.updated to all WebSocket clients IMMEDIATELY
+%   3. Fires handle_node_mastered as a background asyncio.create_task() for LLM reordering
 
 % ── Project-wide MUST NOT rules (apply to all agents) ────────────────────────
 % MUST NOT hand-patch generated output — edit the prompt and regenerate
@@ -60,7 +79,7 @@ DAGNode schema (Pydantic v2, defined in backend/models/dag.py):
   "prerequisites": ["react-components", "javascript-closures"],
   "difficulty": "beginner | intermediate | advanced",
   "estimated_hours": 3,
-  "success_criteria": "Can explain what useEffect's dependency array does and why it matters",
+  "success_criteria": "What is the difference between useEffect and useLayoutEffect, and when would you choose each?",
   "status": "locked | available | seen | mastered",
   "resources": [],
   "completed_at": null,
@@ -69,8 +88,20 @@ DAGNode schema (Pydantic v2, defined in backend/models/dag.py):
 
 Field rules:
 - id: kebab-case slug derived from the node title; must be unique within a DAG
-- prerequisites: list of node IDs; empty list means root node
-- status transitions: locked → available (when all prerequisites mastered) → seen (content classified) → mastered (comprehension passed)
+- prerequisites: list of node IDs in the same slug-form; empty list means root node
+- status transitions:
+    locked → available  when all prerequisites are mastered (unlock_eligible_nodes or _normalize_statuses)
+    available → seen    when the user visits any resource URL for this node (resource_visit route)
+                        OR when content.classified matches this node (handle_content_classified)
+    seen → mastered     when comprehension check passes (comprehension route)
 - resources: populated by enrich_node; empty until that agent runs
+  Resource.type values: "article" | "doc" | "youtube"
 - completed_at: ISO-8601 timestamp; null until status transitions to mastered
-- triggering_content: URL of the page that triggered the seen transition; null otherwise
+- triggering_content: URL of the page that triggered the seen transition via content.classified; null otherwise
+
+Request models (backend/models/dag.py):
+- DAGGenerateRequest:  { topic: str, session_id: str }
+- ClassifyRequest:     { page_url: str, session_id: str, page_text: str | None }
+- ComprehensionRequest:{ node_id: str, success_criteria: str, transcribed_answer: str, session_id: str }
+- ResourceVisitRequest:{ session_id: str, node_id: str, resource_url: str }
+- RegenerateRequest:   { session_id: str }

@@ -2,7 +2,7 @@
 
 <include>context/project_preamble.prompt</include>
 
-<pdd-reason>Populates a DAG node with 3 curated developer resources (GitHub repo, doc, video) via Rtrvr.ai.</pdd-reason>
+<pdd-reason>Populates a DAG node with 3 curated developer resources (tutorial article, official doc, YouTube video) via Rtrvr.ai.</pdd-reason>
 
 <pdd-interface>
 {
@@ -11,8 +11,13 @@
     "functions": [
       {
         "name": "enrich_node",
-        "signature": "(node_title: str, success_criteria: str) -> list[Resource]",
-        "returns": "list[Resource] — exactly 3 items: [github_repo, official_doc, youtube_video]"
+        "signature": "(node_title: str, success_criteria: str, session_id: str) -> list[Resource]",
+        "returns": "list[Resource] — exactly 3 items: [tutorial_article, official_doc, youtube_video]"
+      },
+      {
+        "name": "handle_dag_generated",
+        "signature": "(data: dict) -> None",
+        "returns": "None — RocketRide subscriber; enriches all nodes in parallel"
       }
     ]
   }
@@ -21,42 +26,57 @@
 
 <responsibility>
 Accepts a node title and success_criteria and returns exactly 3 ranked developer resources for
-that node: one GitHub repo, one official documentation page, one developer-focused YouTube video.
-Runs once per node in response to the `dag.generated` RocketRide event; publishes `node.enriched` on success.
+that node: one tutorial article, one official documentation page, one developer-focused YouTube video.
 
-Rtrvr.ai usage: two search calls per node —
-1. Search GitHub for the most-starred relevant repo.
-2. Search for and validate the official maintainer doc URL and a developer YouTube video.
-This agent defines the query strategy and ranking criteria; Rtrvr.ai executes the searches.
+Runs once per node in response to the `dag.generated` RocketRide event (via `handle_dag_generated`).
+Each node is enriched concurrently with `asyncio.gather`. For each node:
+  1. `enrich_node` is called and returns 3 resources.
+  2. `postgres.update_node_resources()` saves the resources to Postgres.
+  3. Only AFTER the DB write, `node.enriched` is published to RocketRide.
+  This ordering guarantees that the `_on_node_enriched` subscriber always reads fresh data.
+
+Rtrvr.ai usage: three Rtrvr.ai /agent calls per node —
+1. `_search_article`: find a tutorial article on Medium, Dev.to, freeCodeCamp, CSS-Tricks, web.dev, or similar developer blogs.
+2. `_search_doc`: find the official maintainer documentation page for the technology.
+3. `_search_youtube`: find a developer-focused YouTube tutorial covering the success_criteria.
+
+Each search is wrapped in try/except. If a search fails, a deterministic fallback search URL
+is used for that slot — the function never raises and always returns exactly 3 resources.
 </responsibility>
 
 <non_responsibilities>
 - Does not generate or modify the DAG.
 - Does not classify content or check comprehension.
-- Does not persist resources — returns them for the caller to attach to the node.
+- Does not publish `node.enriched` inside `enrich_node()` itself — the event is published by
+  `handle_dag_generated._enrich_one()` after the DB write to ensure ordering.
 </non_responsibilities>
 
 <vocabulary>
-- Resource: `{ "type": "github" | "doc" | "youtube", "title": str, "url": str, "reason": str }`.
+- Resource: `{ "type": "article" | "doc" | "youtube", "title": str, "url": str, "reason": str }`.
+- Tutorial article: a written tutorial or explainer on Medium, Dev.to, freeCodeCamp, CSS-Tricks, Smashing Magazine, web.dev, or a similar developer blog.
 - Official documentation: the primary documentation site published by the maintainer of the technology (e.g. react.dev for React, docs.python.org for Python).
 - Developer-focused YouTube video: a tutorial or explanation video from a channel focused on software engineering education.
+- Fallback resource: a deterministic search URL (freeCodeCamp search, MDN search, YouTube search) returned when Rtrvr.ai fails to find a specific resource.
 </vocabulary>
 
 <contract_rules>
-R1 (MUST): Return exactly 3 resources in order: github_repo, official_doc, youtube_video.
+R1 (MUST): Return exactly 3 resources in order: tutorial_article, official_doc, youtube_video.
 R2 (MUST): Each resource must include type, title, url, and reason fields.
 R3 (MUST NOT): Return resources that are not scoped to software engineering or developer education.
 R4 (MUST NOT): Return the same URL more than once in a single response.
 R5 (MUST): The official_doc resource must link to the maintainer's own documentation, not a third-party tutorial site.
-R6 (MUST NOT): Fabricate URLs — only return URLs that Rtrvr.ai scraping confirms exist.
+R6 (MUST NOT): Fabricate URLs — only return URLs that Rtrvr.ai confirms exist or fallback search URLs.
+R7 (MUST): Wrap every Rtrvr.ai call in try/except. On failure, return a fallback search URL for that slot (freeCodeCamp search for article, MDN search for doc, YouTube search for video). Never raise and never return fewer than 3 resources.
+R8 (MUST): In `handle_dag_generated._enrich_one()`, publish `node.enriched` ONLY after `postgres.update_node_resources()` completes. Publishing before the DB write causes the subscriber to read stale (empty) resources.
 </contract_rules>
 
 <capabilities>
-- MAY call Rtrvr.ai to search and validate resource URLs.
-- MAY subscribe to the `dag.generated` RocketRide event and publish `node.enriched` on success.
+- MAY call Rtrvr.ai /agent endpoint to search and validate resource URLs.
+- MAY subscribe to the `dag.generated` RocketRide event.
+- MAY call `postgres.update_node_resources()` (write path owned by `handle_dag_generated._enrich_one()`).
+- MAY publish `node.enriched` after the DB write.
 - MUST NOT call MiniMax LLM API — this is a scraping step, not a reasoning step.
 - MUST NOT call ElevenLabs.
-- MUST NOT write to Postgres or mem0.
 - MUST NOT call another agent's function directly.
 </capabilities>
 
@@ -67,4 +87,6 @@ R3: TODO add dedicated out-of-scope-resource story before production use
 R4: TODO add dedicated duplicate-URL story before production use
 R5: story__enrich_node_curated_resources.md
 R6: story__enrich_node_no_fabricated_urls.md
+R7: TODO add dedicated rtrvr-failure-fallback story before production use
+R8: TODO add dedicated publish-ordering story before production use
 </coverage>

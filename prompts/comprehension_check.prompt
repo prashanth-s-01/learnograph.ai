@@ -32,22 +32,37 @@ ElevenLabs integration — two steps around this agent (neither is inside the ag
   1. ElevenLabs TTS reads the `feedback` sentence from ComprehensionResult aloud.
   2. If verdict is `pass`, plays a confirmation; if `needs_review`, reads the feedback as coaching.
 
-This agent receives and returns text only — it never calls ElevenLabs directly. On a `pass` verdict,
-the FastAPI route handler (not this agent) publishes a `node.mastered` RocketRide pipeline event after writing to
-Postgres and mem0.
+This agent receives and returns text only — it never calls ElevenLabs directly.
+
+POST /comprehension/score route sequence (not inside this agent):
+  1. Gate: calls `postgres.has_visited_any_resource(session_id, node_id)`. Returns HTTP 403 if the
+     user has not visited at least one resource for the node. This ensures the comprehension check
+     can only be attempted after the user has engaged with the learning material.
+  2. Calls `score_comprehension()` (this function).
+  3. On "pass" verdict:
+     a. Updates node status to "mastered" in Postgres.
+     b. Calls `postgres.unlock_eligible_nodes(session_id)` — immediately transitions all locked
+        nodes whose prerequisites are all mastered to "available" in Postgres, before any LLM runs.
+     c. Calls `mem0_client.record_node_mastered()` to persist mastery in long-term memory.
+     d. Publishes `node.mastered` to RocketRide.
+  4. `_on_node_mastered` in main.py broadcasts the current DB state to all WebSocket clients
+     immediately (no LLM wait), then runs `handle_node_mastered` as a background asyncio task.
 </responsibility>
 
 <non_responsibilities>
 - Does not record audio or transcribe speech (ElevenLabs owns that — see pre-step above).
-- Does not update node status in Postgres (the caller does that on pass).
+- Does not update node status in Postgres (the route does that on pass).
 - Does not generate the question to ask the user — derived from success_criteria by the caller.
-- Does not write to mem0 or publish the `node.mastered` RocketRide event (the API layer does both, after receiving a pass verdict).
+- Does not write to mem0 or publish the `node.mastered` RocketRide event (the route does both).
+- Does not call `unlock_eligible_nodes` (the route does that between Postgres write and publish).
+- Does not check the resource-visit gate (the route does that before calling this function).
 </non_responsibilities>
 
 <vocabulary>
 - pass: the transcribed answer demonstrates that the user can address the success_criteria in their own words, even if imperfectly phrased.
 - needs_review: the answer is missing, off-topic, or does not address the core concept in success_criteria.
-- success_criteria: a single testable sentence from the node schema (e.g. "Can explain what useEffect's dependency array does and why it matters").
+- success_criteria: a single conceptual question from the node schema that the learner answers orally (e.g. "What is the difference between useEffect and useLayoutEffect?").
+- resource-visit gate: the check that the user has visited at least one resource for a node before they are allowed to attempt the comprehension check.
 </vocabulary>
 
 <contract_rules>
@@ -65,7 +80,7 @@ R7 (MUST NOT): Ask follow-up questions in the feedback — one sentence of forwa
 - MUST NOT call ElevenLabs (transcription is done before this agent is called).
 - MUST NOT write to Postgres or mem0.
 - MUST NOT call Rtrvr.ai.
-- MUST NOT publish RocketRide events directly — the API layer publishes `node.mastered` after receiving this agent's `pass` verdict.
+- MUST NOT publish RocketRide events directly — the route handles the full pass-verdict sequence.
 - MUST NOT call another agent's function directly.
 </capabilities>
 

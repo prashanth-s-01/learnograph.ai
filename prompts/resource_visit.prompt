@@ -1,0 +1,83 @@
+% You are an expert Python engineer. Define record_resource_visit.
+
+<include>context/project_preamble.prompt</include>
+
+<pdd-reason>Records that the user visited a resource URL for a DAG node; transitions the node from "available" to "seen" on first visit.</pdd-reason>
+
+<pdd-interface>
+{
+  "type": "route",
+  "route": {
+    "method": "POST",
+    "path": "/resource-visit",
+    "request_model": "ResourceVisitRequest",
+    "response": "{ recorded: bool, status_changed: bool }"
+  }
+}
+</pdd-interface>
+
+<responsibility>
+Records that the user has opened a resource URL belonging to a DAG node.
+
+Called by the Chrome extension background script when the user navigates to a URL that matches a
+resource in the active session's DAG (the extension polls GET /dag/resources/{session_id} to get
+the node_id → [resource_urls] map and recognises matching navigations).
+
+Route sequence:
+  1. Validate that the node exists in the session (HTTP 404 if not).
+  2. Validate that resource_url is in the node's known resource set (HTTP 400 if not).
+     This prevents arbitrary URL injection.
+  3. Call `postgres.record_resource_visit(session_id, node_id, resource_url)`.
+     - Inserts into `resource_visits` table (idempotent on repeat visits via ON CONFLICT DO NOTHING).
+     - If this is the first visit for an "available" node, atomically updates status → "seen".
+     - Returns True if the status actually changed.
+  4. If status_changed is True, publish `resource.visited` to RocketRide.
+     - `_on_resource_visited` in main.py reads fresh DB state and broadcasts `dag.updated` to WS.
+
+Companion endpoint — GET /dag/resources/{session_id}:
+  Returns a lightweight map of node_id → [resource_urls] for all "available" and "seen" nodes.
+  Used by the Chrome extension to detect matching navigations without sending every URL to the backend.
+</responsibility>
+
+<non_responsibilities>
+- Does not determine which resource URLs belong to a node (that is set by enrich_node).
+- Does not transition the node past "seen" (comprehension check owns that).
+- Does not call any LLM API.
+- Does not modify any other node's status.
+</non_responsibilities>
+
+<vocabulary>
+- resource_visit: a record that the user opened a specific URL associated with a DAG node.
+- available → seen transition: the one-way promotion that happens on the first resource visit for an "available" node. Subsequent visits to the same or other resources for an already-"seen" node do not change its status.
+- resource-visit gate: the dependency in comprehension_check — the /comprehension/score route calls `postgres.has_visited_any_resource()` and returns HTTP 403 if the user has not visited any resource for the node. This ensures learning material is engaged with before the oral check.
+</vocabulary>
+
+<contract_rules>
+R1 (MUST): Validate that the node exists for the given session_id; return HTTP 404 if not.
+R2 (MUST): Validate that resource_url is one of the node's actual resource URLs; return HTTP 400 if not.
+R3 (MUST): Insert into resource_visits idempotently (ON CONFLICT DO NOTHING) — repeated visits are safe.
+R4 (MUST): Transition status "available" → "seen" atomically in Postgres on the first resource visit; only if the node is currently "available" (never downgrades mastered or seen nodes).
+R5 (MUST): Publish `resource.visited` to RocketRide only when the status actually changed (status_changed == True).
+R6 (MUST NOT): Change any other field on the node besides status and updated_at.
+R7 (MUST NOT): Use this route for nodes that are "locked" — locked nodes have no resources and will fail R1/R2 validation naturally.
+</contract_rules>
+
+<capabilities>
+- MAY read from Postgres (get_nodes to validate).
+- MAY write to resource_visits table and update dag_nodes.status in Postgres.
+- MAY publish `resource.visited` RocketRide event.
+- MUST NOT call MiniMax LLM API.
+- MUST NOT call Rtrvr.ai or ElevenLabs.
+- MUST NOT write to mem0.
+- MUST NOT call another agent's function directly.
+</capabilities>
+
+<coverage>
+R1: TODO add dedicated node-not-found story before production use
+R2: TODO add dedicated invalid-url story before production use
+R3: TODO add dedicated idempotent-visit story before production use
+R4: story__resource_visit_transitions_seen.md
+R5: TODO add dedicated ws-broadcast-on-seen story before production use
+R6: TODO add dedicated no-field-mutation story before production use
+R7: TODO add dedicated locked-node-rejection story before production use
+</coverage>

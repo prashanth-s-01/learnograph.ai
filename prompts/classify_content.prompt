@@ -22,26 +22,33 @@
 <responsibility>
 Accepts scraped text from the user's active browser tab and the current list of available node IDs
 and titles, and returns the single best-matching node ID or `null`. Publishes a `content.classified`
-RocketRide pipeline event when a match is found.
+RocketRide pipeline event when a match is found, which triggers `regenerate_dag` and transitions
+the matched node to "seen" in `handle_content_classified`.
 
 Pre-step (runs in the `/classify` FastAPI route before this agent is called):
-1. Receive `page_url` from the Chrome extension.
-2. Call Rtrvr.ai to extract clean page text (strips nav, ads, boilerplate).
-3. Pass the extracted `page_text` + `page_url` into this agent.
+1. Receive `page_url` and optional `page_text` from the Chrome extension.
+2. If `page_text` is provided by the extension, use it directly.
+3. Otherwise, call Rtrvr.ai /scrape to extract clean page text (strips nav, ads, boilerplate).
+4. Pass the extracted `page_text` + `page_url` + available nodes from Postgres into this agent.
 
 This agent never calls Rtrvr.ai directly — it receives `page_text` as a pre-scraped input.
+
+Note: the `content.classified` event payload currently includes `node_id` and `page_url` but not
+`session_id`. The `handle_content_classified` subscriber uses `session_id = "default"` as a
+fallback. In a multi-session deployment this would need to be threaded through.
 </responsibility>
 
 <non_responsibilities>
 - Does not scrape content (Rtrvr.ai owns that, called before this agent).
 - Does not update node status in Postgres.
 - Does not decide what to do after a match is found (`regenerate_dag` owns that, triggered via the `content.classified` RocketRide event).
+- Does not transition the node to "seen" (that happens inside `handle_content_classified` in dag_regenerator.py).
 </non_responsibilities>
 
 <vocabulary>
 - Confident match: the page text substantively covers the concept described by the node's title and success_criteria, not merely mentions the word.
 - available_nodes: nodes with status `available` or `seen` — locked nodes must not be matched.
-- page_text: plain text extracted from the active tab by Rtrvr.ai, stripped of navigation and boilerplate.
+- page_text: plain text extracted from the active tab by Rtrvr.ai (or supplied by the Chrome extension directly), stripped of navigation and boilerplate.
 </vocabulary>
 
 <contract_rules>
@@ -50,7 +57,7 @@ R2 (MUST): Return null when no available node is a confident match.
 R3 (MUST NOT): Return a node ID for a locked node (status = "locked").
 R4 (MUST NOT): Match on keyword presence alone — the content must address the node's success_criteria.
 R5 (MUST NOT): Return more than one node ID — one match or null, never a list.
-R6 (MUST): Operate only on the nodes passed in available_nodes — must not invent or assume other nodes exist.
+R6 (MUST): Operate only on the nodes passed in available_nodes — must not invent or assume other nodes exist. Guard: return null if the LLM returns an ID not in the provided list.
 </contract_rules>
 
 <capabilities>
