@@ -100,6 +100,16 @@ def _parse_nodes(raw: str) -> list[DAGNode]:
     return nodes
 
 
+def _normalize_statuses(nodes: list[DAGNode], mastered: set[str]) -> None:
+    for node in nodes:
+        if not node.prerequisites:
+            node.status = NodeStatus.available
+        elif all(prereq in mastered for prereq in node.prerequisites):
+            node.status = NodeStatus.available
+        else:
+            node.status = NodeStatus.locked
+
+
 async def generate_dag(topic: str, user_profile: dict | None) -> list[DAGNode]:
     """
     R1: Returns DAGNode list for any developer topic.
@@ -132,11 +142,7 @@ async def generate_dag(topic: str, user_profile: dict | None) -> list[DAGNode]:
     if nodes and not (5 <= len(nodes) <= 30):
         log.warning("Node count %d out of range for topic '%s'", len(nodes), topic)
 
-    # Enforce R8: re-unlock dependants of mastered nodes (belt-and-suspenders)
-    if mastered:
-        mastered_set = set(mastered)
-        for node in nodes:
-            if all(p in mastered_set for p in node.prerequisites) and node.prerequisites:
-                node.status = NodeStatus.available
+    # Enforce root-node availability and unlock dependants of mastered nodes.
+    _normalize_statuses(nodes, set(mastered))
 
     return _topo_sort(nodes)

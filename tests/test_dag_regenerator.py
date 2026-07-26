@@ -68,7 +68,7 @@ async def test_R2_unlocks_nodes_whose_prerequisites_are_mastered():
     mastered = {**MASTERED_NODE}
     locked = {**SAMPLE_NODE, "status": "locked", "prerequisites": ["react-components"]}
     current = _make_nodes(mastered, locked)
-    llm_output = [mastered, {**locked, "status": "available"}]
+    llm_output = [mastered, locked]
 
     with patch("backend.agents.dag_regenerator._client") as mock_client:
         mock_client.chat.completions.create = AsyncMock(return_value=_mock_llm(llm_output))
@@ -78,6 +78,23 @@ async def test_R2_unlocks_nodes_whose_prerequisites_are_mastered():
 
     hooks = next(n for n in result if n.id == "react-hooks")
     assert hooks.status == NodeStatus.available
+
+
+@pytest.mark.asyncio
+async def test_R2_root_nodes_become_available():
+    """R2: Root nodes stay available even if the LLM returns them locked."""
+    root = {**SAMPLE_NODE, "prerequisites": [], "status": "locked"}
+    current = _make_nodes(root)
+    llm_output = [root]
+
+    with patch("backend.agents.dag_regenerator._client") as mock_client:
+        mock_client.chat.completions.create = AsyncMock(return_value=_mock_llm(llm_output))
+        with patch("backend.agents.dag_regenerator.rocketride_client.publish", new_callable=AsyncMock):
+            from backend.agents.dag_regenerator import regenerate_dag
+            result = await regenerate_dag(current, MEM0_STATE)
+
+    node = next(n for n in result if n.id == root["id"])
+    assert node.status == NodeStatus.available
 
 
 @pytest.mark.asyncio

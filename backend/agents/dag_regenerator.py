@@ -46,6 +46,23 @@ def _parse_nodes(raw: str) -> list[DAGNode]:
     return [DAGNode(**item) for item in data]
 
 
+def _normalize_statuses(node: DAGNode, original_map: dict[str, DAGNode]) -> None:
+    if node.status == NodeStatus.mastered:
+        return
+
+    if node.status == NodeStatus.seen:
+        return
+
+    if not node.prerequisites:
+        node.status = NodeStatus.available
+        return
+
+    if all(original_map.get(prereq, node).status == NodeStatus.mastered for prereq in node.prerequisites):
+        node.status = NodeStatus.available
+    else:
+        node.status = NodeStatus.locked
+
+
 async def regenerate_dag(
     current_dag: list[DAGNode],
     mem0_state: dict,
@@ -97,6 +114,8 @@ async def regenerate_dag(
         if orig.status == NodeStatus.mastered:
             node.status = NodeStatus.mastered
             node.completed_at = orig.completed_at
+
+        _normalize_statuses(node, original_map)
 
         result.append(node)
 

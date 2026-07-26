@@ -22,7 +22,7 @@ def mock_minimax(monkeypatch):
             "difficulty": "beginner",
             "estimated_hours": 5,
             "success_criteria": "Can write a function that maps over an array",
-            "status": "available",
+            "status": "locked",
             "resources": [],
             "completed_at": None,
             "triggering_content": None,
@@ -89,8 +89,7 @@ def mock_minimax(monkeypatch):
 
     with patch("backend.agents.dag_generator._client") as mock_client:
         mock_client.chat.completions.create = mock_create
-        with patch("backend.agents.dag_generator.rocketride_client.publish", new_callable=AsyncMock):
-            yield mock_create, response_nodes
+        yield mock_create, response_nodes
 
 
 @pytest.mark.asyncio
@@ -180,10 +179,9 @@ async def test_R6_non_dev_topic_returns_empty():
 
     with patch("backend.agents.dag_generator._client") as mock_client:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        with patch("backend.agents.dag_generator.rocketride_client.publish", new_callable=AsyncMock):
-            from backend.agents.dag_generator import generate_dag
-            nodes = await generate_dag("Learn to cook pasta", None)
-            assert nodes == [], "Non-dev topic should produce no nodes"
+        from backend.agents.dag_generator import generate_dag
+        nodes = await generate_dag("Learn to cook pasta", None)
+        assert nodes == [], "Non-dev topic should produce no nodes"
 
 
 @pytest.mark.asyncio
@@ -211,7 +209,7 @@ async def test_R8_mastered_nodes_excluded_dependants_unlocked():
             "difficulty": "intermediate",
             "estimated_hours": 3,
             "success_criteria": "Can explain useEffect dependency array",
-            "status": "available",   # should be unlocked because prereq mastered
+            "status": "locked",   # should be unlocked because prereq mastered
             "resources": [],
             "completed_at": None,
             "triggering_content": None,
@@ -239,14 +237,13 @@ async def test_R8_mastered_nodes_excluded_dependants_unlocked():
 
     with patch("backend.agents.dag_generator._client") as mock_client:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-        with patch("backend.agents.dag_generator.rocketride_client.publish", new_callable=AsyncMock):
-            from backend.agents.dag_generator import generate_dag
-            nodes = await generate_dag("Learn React", user_profile)
+        from backend.agents.dag_generator import generate_dag
+        nodes = await generate_dag("Learn React", user_profile)
 
-            node_ids = [n.id for n in nodes]
-            assert "react-components" not in node_ids, "Mastered node should be excluded"
+    node_ids = [n.id for n in nodes]
+    assert "react-components" not in node_ids, "Mastered node should be excluded"
 
-            hooks_node = next((n for n in nodes if n.id == "react-hooks"), None)
-            if hooks_node:
-                assert hooks_node.status == NodeStatus.available, \
-                    "Direct dependant of mastered node should be available"
+    hooks_node = next((n for n in nodes if n.id == "react-hooks"), None)
+    if hooks_node:
+        assert hooks_node.status == NodeStatus.available, \
+            "Direct dependant of mastered node should be available"
