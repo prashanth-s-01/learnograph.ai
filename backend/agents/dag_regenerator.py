@@ -130,10 +130,11 @@ async def regenerate_dag(
         if orig_node.id not in returned_ids:
             result.append(orig_node)
 
-    # R2: Programmatically unlock every node whose ALL prerequisites are mastered
+    # R2: Programmatically unlock every node whose ALL prerequisites are mastered.
+    # Skip mastered and seen — seen is already ≥ available and must not regress.
     mastered_ids = {n.id for n in result if n.status == NodeStatus.mastered}
     for node in result:
-        if node.status != NodeStatus.mastered:
+        if node.status not in (NodeStatus.mastered, NodeStatus.seen):
             if not node.prerequisites or all(p in mastered_ids for p in node.prerequisites):
                 node.status = NodeStatus.available
 

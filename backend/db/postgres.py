@@ -91,12 +91,6 @@ async def upsert_nodes(session_id: str, nodes: list[DAGNode]) -> None:
         )
 
 
-async def clear_nodes(session_id: str) -> None:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM dag_nodes WHERE session_id=$1", session_id)
-
-
 async def get_nodes(session_id: str) -> list[DAGNode]:
     pool = await get_pool()
     async with pool.acquire() as conn:

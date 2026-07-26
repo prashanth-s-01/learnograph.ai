@@ -93,11 +93,24 @@ def _parse_nodes(raw: str) -> list[DAGNode]:
     if raw.startswith("```"):
         raw = re.sub(r"^```[a-z]*\n?", "", raw).rstrip("`").strip()
     data = json.loads(raw)
+
+    # Build old-id → slug map BEFORE overriding IDs so prerequisite references
+    # can be remapped to the same slug-normalised IDs used for node.id.
+    id_map: dict[str, str] = {
+        item.get("id", ""): _slug(item["title"])
+        for item in data
+        if item.get("title")
+    }
+
     nodes = []
     for item in data:
         item.setdefault("resources", [])
         item.setdefault("completed_at", None)
         item.setdefault("triggering_content", None)
+        # Remap prerequisite IDs to use the same slugs we assign to node.id
+        item["prerequisites"] = [
+            id_map.get(p, _slug(p)) for p in item.get("prerequisites", [])
+        ]
         item["id"] = _slug(item["title"])
         nodes.append(DAGNode(**item))
     return nodes
