@@ -40,3 +40,18 @@ async def regenerate(req: RegenerateRequest) -> list[dict]:
 async def get_dag(session_id: str) -> list[dict]:
     nodes = await postgres.get_nodes(session_id)
     return [n.model_dump(mode="json") for n in nodes]
+
+
+@router.get("/resources/{session_id}")
+async def get_resource_urls(session_id: str) -> dict:
+    """Lightweight map of node_id → [resource_urls] for available/seen nodes.
+
+    Used by the Chrome extension to detect when the user browses a resource URL.
+    """
+    nodes = await postgres.get_available_nodes(session_id)
+    return {
+        n.id: [r.url for r in n.resources]
+        for n in nodes
+        if n.resources
+    }
+

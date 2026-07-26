@@ -13,6 +13,14 @@ router = APIRouter(prefix="/comprehension", tags=["comprehension"])
 
 @router.post("/score")
 async def score(req: ComprehensionRequest) -> dict:
+    # Gate: user must have visited at least one resource before attempting the check
+    has_visited = await postgres.has_visited_any_resource(req.session_id, req.node_id)
+    if not has_visited:
+        raise HTTPException(
+            status_code=403,
+            detail="Must review at least one resource before attempting the comprehension check",
+        )
+
     result = await comp_agent.score_comprehension(
         req.success_criteria,
         req.transcribed_answer,
