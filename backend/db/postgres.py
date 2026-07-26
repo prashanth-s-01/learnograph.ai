@@ -29,9 +29,13 @@ async def close_pool() -> None:
 
 async def run_migrations() -> None:
     pool = await get_pool()
-    migration = open("backend/db/migrations/001_initial.sql").read()
     async with pool.acquire() as conn:
-        await conn.execute(migration)
+        for migration_file in [
+            "backend/db/migrations/001_initial.sql",
+            "backend/db/migrations/002_resource_visits.sql",
+        ]:
+            migration = open(migration_file).read()
+            await conn.execute(migration)
 
 
 # ── DAG node CRUD ─────────────────────────────────────────────────────────────
@@ -160,3 +164,57 @@ async def unlock_eligible_nodes(session_id: str) -> list[DAGNode]:
         await upsert_nodes(session_id, nodes)
     return nodes
 
+
+# ── Resource visit tracking ───────────────────────────────────────────────────
+
+async def record_resource_visit(
+    session_id: str, node_id: str, resource_url: str
+) -> bool:
+    """
+    Record that the user visited a resource URL for a given node.
+    If this is the first resource visit for an 'available' node, transitions
+    the node status to 'seen'. Returns True if the node status changed.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            INSERT INTO resource_visits (session_id, node_id, resource_url)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (session_id, node_id, resource_url) DO NOTHING
+            """,
+            session_id, node_id, resource_url,
+        )
+        # Transition available → seen on first resource visit
+        result = await conn.execute(
+            """
+            UPDATE dag_nodes
+               SET status = 'seen', updated_at = NOW()
+             WHERE session_id = $1 AND node_id = $2 AND status = 'available'
+            """,
+            session_id, node_id,
+        )
+        # asyncpg returns "UPDATE N" — check if a row was actually updated
+        return result == "UPDATE 1"
+
+
+async def get_visited_resources(session_id: str, node_id: str) -> set[str]:
+    """Return the set of resource URLs the user has visited for a node."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT resource_url FROM resource_visits WHERE session_id=$1 AND node_id=$2",
+            session_id, node_id,
+        )
+    return {row["resource_url"] for row in rows}
+
+
+async def has_visited_any_resource(session_id: str, node_id: str) -> bool:
+    """Quick check: has the user visited at least one resource for this node?"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT 1 FROM resource_visits WHERE session_id=$1 AND node_id=$2 LIMIT 1",
+            session_id, node_id,
+        )
+    return row is not None

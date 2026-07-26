@@ -1,11 +1,6 @@
 // Manifest V3 content script — runs in the context of every tab.
-// Extracts visible page text and POSTs it (along with the URL) to /classify
-// so the server can map the content to a learning node without needing Rtrvr.ai.
 
-const BACKEND_URL = "http://localhost:8000";
-const SESSION_ID = "default";
 const DEBOUNCE_MS = 2000;
-
 let debounceTimer = null;
 
 function extractVisibleText() {
@@ -37,35 +32,79 @@ function extractVisibleText() {
 
 async function classify() {
   const pageUrl = window.location.href;
-
-  // Only classify HTTP pages — skip extensions, devtools, etc.
   if (!pageUrl.startsWith("http")) return;
 
-  // Extract visible text here and send it directly to avoid Rtrvr.ai round-trip
   const pageText = extractVisibleText();
 
   try {
-    await fetch(`${BACKEND_URL}/classify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ page_url: pageUrl, session_id: SESSION_ID, page_text: pageText }),
+    await chrome.runtime.sendMessage({
+      type: "classify",
+      payload: { page_url: pageUrl, session_id: "default", page_text: pageText },
     });
   } catch {
-    // Silently ignore — backend may not be running during development
+    // Extension context may be invalidated — ignore
   }
 }
 
-function scheduleClassify() {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(classify, DEBOUNCE_MS);
+function normaliseUrl(raw) {
+  try {
+    const u = new URL(raw);
+    u.hash = "";
+    u.searchParams.sort();
+    let s = u.toString();
+    if (s.endsWith("/")) s = s.slice(0, -1);
+    return s;
+  } catch {
+    return raw;
+  }
 }
 
-// Trigger on initial load and on SPA navigation
-scheduleClassify();
+async function reportResourceVisit() {
+  const pageUrl = window.location.href;
+  if (!pageUrl.startsWith("http")) return;
+
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "get-resource-map" });
+    if (!res?.ok || !res.data) return;
+
+    const resourceMap = res.data;
+    const normPage = normaliseUrl(pageUrl);
+
+    for (const [nodeId, urls] of Object.entries(resourceMap)) {
+      for (const url of urls) {
+        const normResource = normaliseUrl(url);
+        if (normPage === normResource || normPage.startsWith(normResource)) {
+          console.log(`[Learnograph Extension] 🎯 Resource match found for node "${nodeId}":`, pageUrl);
+          await chrome.runtime.sendMessage({
+            type: "report-resource-visit",
+            payload: {
+              session_id: "default",
+              node_id: nodeId,
+              resource_url: url,
+            },
+          });
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[Learnograph Extension] Notice:", err);
+  }
+}
+
+function scheduleActions() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    await classify();
+    await reportResourceVisit();
+  }, DEBOUNCE_MS);
+}
+
+scheduleActions();
 
 const _pushState = history.pushState.bind(history);
 history.pushState = (...args) => {
   _pushState(...args);
-  scheduleClassify();
+  scheduleActions();
 };
-window.addEventListener("popstate", scheduleClassify);
+window.addEventListener("popstate", scheduleActions);

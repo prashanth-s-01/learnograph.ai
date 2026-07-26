@@ -29,9 +29,29 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * Fire-and-forget POST to /api/resource-visit when the user clicks a resource link.
+ * This ensures even users without the Chrome extension get credit for consuming resources.
+ */
+function reportResourceClick(nodeId: string, resourceUrl: string, sessionId = "default") {
+  fetch("/api/resource-visit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: sessionId,
+      node_id: nodeId,
+      resource_url: resourceUrl,
+    }),
+  }).catch(() => {
+    // Silently ignore — backend may not be reachable
+  });
+}
+
 export default function NodePanel({ node, onStartCheck, onClose }: Props) {
   const color = STATUS_COLOR[node.status] ?? "#6b7280";
-  const canCheck = node.status === "available" || node.status === "seen";
+  // Gate: only allow comprehension check when the node has been "seen" (at least 1 resource visited)
+  const canCheck = node.status === "seen";
+  const needsResources = node.status === "available";
 
   return (
     <div
@@ -125,6 +145,7 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
                 href={r.url}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => reportResourceClick(node.id, r.url)}
                 style={{
                   display: "flex", alignItems: "flex-start", gap: 12,
                   background: "#f8fafc", borderRadius: 14, padding: "12px 14px",
@@ -185,6 +206,16 @@ export default function NodePanel({ node, onStartCheck, onClose }: Props) {
           >
             🎙 Start Comprehension Check
           </button>
+        )}
+
+        {needsResources && node.resources.length > 0 && (
+          <div style={{
+            background: "#3b82f622", border: "1px solid #3b82f655",
+            borderRadius: 8, padding: "12px 16px", fontSize: 14, color: "#93c5fd",
+            textAlign: "center",
+          }}>
+            📖 Review at least one resource above to unlock the comprehension check
+          </div>
         )}
 
         {node.status === "mastered" && (

@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.db import postgres
 from backend.orchestration import rocketride_client
-from backend.routes import classify, comprehension, dag
+from backend.routes import classify, comprehension, dag, resource_visit
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(dag.router)
 app.include_router(classify.router)
 app.include_router(comprehension.router)
+app.include_router(resource_visit.router)
 
 # ── Active WebSocket connections ──────────────────────────────────────────────
 _ws_clients: set[WebSocket] = set()
@@ -106,6 +107,16 @@ async def _on_node_mastered(data: dict) -> None:
     asyncio.create_task(handle_node_mastered(data))
 
 
+async def _on_resource_visited(data: dict) -> None:
+    """Fired when a resource visit transitions a node to 'seen'; pushes fresh DAG."""
+    session_id = data.get("session_id", "default")
+    nodes = await postgres.get_nodes(session_id)
+    await _broadcast({
+        "event": "dag.updated",
+        "data": {"nodes": [n.model_dump(mode="json") for n in nodes]},
+    })
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @app.on_event("startup")
@@ -117,6 +128,7 @@ async def startup() -> None:
     await rocketride_client.subscribe("content.classified", _on_content_classified)
     await rocketride_client.subscribe("dag.regenerated",    _on_dag_regenerated)
     await rocketride_client.subscribe("node.mastered",      _on_node_mastered)
+    await rocketride_client.subscribe("resource.visited",   _on_resource_visited)
 
     log.info("Learnograph API started — RocketRide subscribers active")
 

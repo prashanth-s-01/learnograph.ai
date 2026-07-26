@@ -64,5 +64,11 @@ class ComprehensionRequest(BaseModel):
     session_id: str = "default"
 
 
+class ResourceVisitRequest(BaseModel):
+    session_id: str = "default"
+    node_id: str
+    resource_url: str
+
+
 class RegenerateRequest(BaseModel):
     session_id: str = "default"
