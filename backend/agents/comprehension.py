@@ -18,8 +18,8 @@ _client = AsyncOpenAI(api_key=settings.LLM_API_KEY, base_url=settings.LLM_BASE_U
 _SYSTEM = """
 You are a comprehension evaluator for a developer learning platform.
 
-You receive a learning node's success_criteria and a learner's spoken answer
-(already transcribed to text). Return a JSON object with exactly two fields:
+You receive a learning node's success_criteria (a conceptual question) and a learner's
+spoken answer (already transcribed to text). Return a JSON object with exactly two fields:
   verdict: "pass" | "needs_review"
   feedback: one sentence of forward-pointing feedback
 

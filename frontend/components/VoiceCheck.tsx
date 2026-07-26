@@ -39,7 +39,7 @@ export default function VoiceCheck({ node, sessionId, onResult, onClose }: Props
   async function speakQuestion() {
     setPhase("speaking-question");
     setError(null);
-    const question = `Explain the following in your own words: ${node.success_criteria}`;
+    const question = node.success_criteria;
 
     if (elevenKey) {
       try {
